@@ -276,6 +276,26 @@ The rule is experimental:
 
 Without `--combined`, every output is unchanged.
 
+### `snapshot save` and `snapshot diff`: track the attack surface over time
+
+```bash
+mcp-guard snapshot save ~/.cursor/mcp.json --live -o before.json
+# ... later, or after updating a server
+mcp-guard snapshot save ~/.cursor/mcp.json --live -o after.json
+mcp-guard snapshot diff before.json after.json
+```
+
+`save` writes the captured state of your setup: servers, tools with their raw descriptions, input schemas and annotations, and with `--live` the resources and prompts. Secrets are redacted, so the file is safe to commit or archive.
+
+`diff` compares two snapshots:
+- **Items:** servers and tools added, removed or changed.
+- **Tool changes:** for a changed tool, the old and new description, every schema or annotation path that moved, and the risk and findings before and after. A tool that keeps its name but changes what it tells the model is flagged as a **possible rug pull**.
+- **`--combined`:** also shows how the `agent-exfiltration-surface` result evolved.
+- **`--format json`:** a structured export (`mcp-guard-diff/1`) for CI.
+- **`--exit-code`:** exits with 1 when the surface changed, like `git diff --exit-code`.
+
+`lock` answers "did anything change since I approved it?" with fingerprints only. `snapshot diff` shows exactly what changed, at the cost of keeping the full (redacted) snapshot.
+
 ### `lock <config_file>`: detect rug pulls
 
 A server you approved can later change what its tools say or do: rewrite a description, add a parameter, flip an annotation, add a tool. MCP clients do not warn you. `lock` records SHA-256 fingerprints in `mcp-guard.lock`. `inspect --lock` then reports what changed:

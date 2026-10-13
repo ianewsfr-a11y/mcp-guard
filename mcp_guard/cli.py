@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any
 
 import click
+from pydantic import ValidationError
 from rich.console import Console
 from rich.markup import escape
 
 from . import __version__, renderer
 from .collector import capture_live, collect, launch_plan
+from .diff import diff_snapshots
 from .formats import load_config
 from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
 from .inline import SOURCE_LABEL, servers_from_cli
@@ -370,3 +372,135 @@ def test_injection(target: Path, run: bool, only: str | None, timeout: float,
         raise SystemExit(1)
     if "ERROR" in verdicts:
         raise SystemExit(2)
+
+
+# --- snapshot ---------------------------------------------------------------------
+
+DEFAULT_SNAPSHOT = "mcp-guard.snapshot.json"
+_DIFF_FORMATS = click.Choice(["table", "json"], case_sensitive=False)
+
+
+@cli.group()
+def snapshot() -> None:
+    """Save captures of your MCP setup and compare them over time."""
+
+
+@snapshot.command("save")
+@click.argument("config_file", required=False,
+                type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--server", "servers", multiple=True, metavar="COMMAND_OR_URL",
+              help="A server given inline instead of CONFIG_FILE. Repeatable.")
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path),
+              default=DEFAULT_SNAPSHOT, show_default=True, help="Snapshot file to write.")
+@click.option("--live", is_flag=True,
+              help="Also capture the tools, resources and prompts each server serves.")
+@click.option("--yes", "assume_yes", is_flag=True,
+              help="Do not ask for confirmation before --live.")
+@click.option("--timeout", type=click.FloatRange(min=1), default=20, show_default=True,
+              help="Seconds to wait for each server in --live mode.")
+def snapshot_save(config_file: Path | None, servers: tuple[str, ...], output: Path,
+                  live: bool, assume_yes: bool, timeout: float) -> None:
+    """Capture servers and tools into a snapshot file (secrets redacted)."""
+    if config_file and output.resolve() == config_file.resolve():
+        raise InputError("the snapshot would overwrite CONFIG_FILE: pick another -o")
+    data, source = _load_input(config_file, servers)
+    static = _static_snapshot(data, source)
+    results = _live_results(static, timeout, assume_yes) if live else None
+    snap = collect(data, source, results) if live else static
+    _write(output, snap.to_json())
+    failed = [s.name for s in snap.servers if s.live_status == "failed"]
+    if failed:
+        stderr.print(f"[yellow]warning: not reached, saved as failed: "
+                     f"{escape(printable(', '.join(failed), 300))}[/]")
+    tools = sum(1 for _ in snap.all_tools())
+    stderr.print(f"Saved {len(snap.servers)} server(s) and {tools} tool(s) ({snap.mode} mode) "
+                 f"in {escape(str(output))}, digest {snap.digest[:12]}.")
+
+
+def _write(path: Path, text: str) -> None:
+    """Write a report or snapshot; an unwritable path is an input error."""
+    try:
+        path.write_text(text + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise InputError(f"cannot write {path}: {exc.strerror or exc}") from exc
+
+
+MAX_SNAPSHOT_DEPTH = 64  # real schemas are a few levels deep
+
+
+def _depth(value: Any) -> int:
+    """Nesting depth of parsed JSON, computed without recursion."""
+    deepest, stack = 0, [(value, 1)]
+    while stack:
+        node, level = stack.pop()
+        deepest = max(deepest, level)
+        if isinstance(node, dict):
+            stack += [(child, level + 1) for child in node.values()]
+        elif isinstance(node, list):
+            stack += [(child, level + 1) for child in node]
+    return deepest
+
+
+def _read_snapshot(path: Path) -> MCPSnapshot:
+    """A snapshot file, fully validated: bounded nesting, valid model, and it
+    serializes back (so a crafted file fails here, not in the middle of a diff)."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        if _depth(data) > MAX_SNAPSHOT_DEPTH:
+            raise ValueError(f"JSON nested deeper than {MAX_SNAPSHOT_DEPTH} levels")
+        snap = MCPSnapshot.model_validate(data)
+        _ = snap.digest
+        return snap
+    except (OSError, UnicodeDecodeError) as exc:
+        raise InputError(f"cannot read snapshot {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise InputError(f"{path} is not an mcp-guard snapshot (invalid JSON: {exc})") from exc
+    except ValidationError as exc:
+        raise InputError(f"{path} is not an mcp-guard snapshot "
+                         f"({exc.error_count()} error(s), first: "
+                         f"{printable(str(exc.errors()[0]['msg']), 200)})") from exc
+    except (ValueError, RecursionError) as exc:
+        raise InputError(f"{path} is not a usable snapshot: "
+                         f"{printable(str(exc), 200)}") from exc
+
+
+@snapshot.command("diff")
+@click.argument("old", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("new", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--format", "fmt", type=_DIFF_FORMATS, default="table", show_default=True,
+              help="`json` is a structured export for CI or other tools.")
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path),
+              help="Write the json report to this file.")
+@click.option("--rules", "rules_file", type=click.Path(exists=True, dir_okay=False,
+                                                       path_type=Path),
+              help="Custom rules file, used to rate both snapshots.")
+@click.option("--combined", is_flag=True,
+              help="Also compare the experimental agent-exfiltration-surface result.")
+@click.option("--exit-code", is_flag=True,
+              help="Exit with code 1 when the attack surface changed (like git diff).")
+def snapshot_diff(old: Path, new: Path, fmt: str, output: Path | None,
+                  rules_file: Path | None, combined: bool, exit_code: bool) -> None:
+    """Compare two snapshots: servers and tools added, removed or changed
+    (description, input schema, annotations, risk), possible rug pulls."""
+    if output and fmt.lower() != "json":
+        raise click.UsageError("-o writes the json report: add --format json")
+    try:
+        ruleset = load_ruleset(rules_file) if rules_file else DEFAULT_RULESET
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+    before, after = _read_snapshot(old), _read_snapshot(new)
+    try:
+        diff = diff_snapshots(before, after, ruleset, combined)
+    except (ValueError, RecursionError) as exc:  # e.g. a hand-edited tool that no longer validates
+        raise InputError(f"cannot compare these snapshots: {printable(str(exc), 300)}") from exc
+    if fmt.lower() == "json":
+        report = renderer.diff_to_json(diff)
+        if output:
+            _write(output, report)
+            stderr.print(f"Report written to {escape(str(output))}")
+        else:
+            click.echo(report)
+    else:
+        renderer.render_diff(diff)
+    if exit_code and diff.changed:
+        raise SystemExit(1)

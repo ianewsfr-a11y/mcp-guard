@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **`mcp-guard snapshot diff OLD NEW`**: compares two snapshots and shows how the attack surface moved.
+  - **What it reports:** servers and tools added, removed or changed.
+  - **Tool changes:** for a tool kept in both, the description (old and new text), input schema, annotations and metadata, path by path (`$.properties.note`), plus its risk and finding categories before and after.
+  - **Rug pulls:** a tool that keeps its name but changes what it tells the model is flagged as a possible rug pull.
+  - **Server changes:** spec in redacted form, live status, resources and prompts.
+  - **`--combined`:** also compares the `agent-exfiltration-surface` result (status, risk, id, cut point, tools per capability).
+  - **Outputs:** a Rich table by default. `--format json` gives a structured export (`mcp-guard-diff/1`) for CI or other tools.
+  - **Options:** `--exit-code` exits with 1 when the surface changed, and `--rules` rates both sides.
+- **`mcp-guard snapshot save`**: writes a snapshot file (static, or `--live`), with secrets redacted. Until now snapshots were only reachable from the Python API, so `diff` had nothing to compare from the command line.
 - **`inspect --combined` (experimental)**: config-level rule `agent-exfiltration-surface`.
   - **Trigger:** together, the active servers let an agent read private data, ingest untrusted content and send data out.
   - **Finding:** one per config. MEDIUM, or HIGH with `broad-filesystem-scope` on a server that reads private data. It lists the tools behind each capability and the cut point.

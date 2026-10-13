@@ -19,6 +19,13 @@ def printable(text: str, limit: int | None = None) -> str:
     return cleaned
 
 
+def visible(text: str) -> str:
+    """The text without the characters `printable` would replace: two strings
+    with the same `visible` form differ only in invisible or control
+    characters (a classic way to hide a change)."""
+    return _CONTROL.sub("", str(text))
+
+
 def escaped(text: str) -> str:
     r"""ASCII-only form where every non-ASCII or control character is written
     as a Python escape (`\u200b`, `\u0435`), so two strings that look
