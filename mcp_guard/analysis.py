@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from .formats import discover
 from .models import AuditEntry, Finding, Risk, ServerSpec, ToolSpec
+from .poisoning import detect_poisoning
 from .rules import DEFAULT_RULESET, RuleSet, tokenize
 
 _SHELL_LAUNCHERS = frozenset({"cmd", "bash", "sh", "zsh", "powershell", "pwsh"})
@@ -43,8 +44,9 @@ def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
                  server: str | None = None) -> AuditEntry:
     tokens = tokenize(tool.name, tool.description,
                       *_schema_property_names(tool.inputSchema))
+    findings = (*detect_poisoning(tool), *ruleset.match(tokens))
     return AuditEntry(kind="tool", name=tool.name, server=server,
-                      findings=ruleset.keep(ruleset.match(tokens)))
+                      findings=ruleset.keep(findings))
 
 
 # --------------------------------------------------------------------------- #
