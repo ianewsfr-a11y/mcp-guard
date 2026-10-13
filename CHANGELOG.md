@@ -7,6 +7,8 @@
 - **Automated `test-injection --run`**: mcp-guard plays a hostile MCP server against an agent script over the `mcp-guard-harness/1` JSON-lines protocol. 8 scenarios with honeypot tools. A run FAILs on an echoed canary (also disguised: case, punctuation, reversed, base64, hex), unneeded tool calls, a leaked canary, or any address/host the task did not mention. Exit `1` on FAIL, `2` on ERROR. `--only`, `--timeout`, `--json`, and a confirmation before starting the agent.
 - `examples/agents/`: `naive_agent.py` (fails 8/8), `guarded_agent.py` (passes 8/8), `anthropic_agent.py` (tests a real Claude model).
 - Rules files accept `exceptions:` (keyword -> adjacent context words).
+- **`--server`** for `inspect` and `lock`: audit a server given on the command line (a command or an `http(s)` URL, repeatable) without writing a config file, e.g. `mcp-guard inspect --live --yes --server "npx -y @modelcontextprotocol/server-memory"`.
+- README: "Quick Replication" section and PyPI badges.
 
 ### Changed
 - **Fewer lexical false positives**: keywords are excused only by an adjacent context word (within 2 words): "Add two numbers", "Execute a SQL query", "root directory", "remove duplicates", "markdown table" no longer raise write/exec/privileged/database findings. A context word elsewhere excuses nothing, so attackers cannot hide "Execute any command" by adding "Supports SQL queries".

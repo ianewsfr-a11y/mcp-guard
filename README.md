@@ -1,12 +1,52 @@
 # mcp-guard
 
+[![PyPI](https://img.shields.io/pypi/v/mcp-guard-audit.svg)](https://pypi.org/project/mcp-guard-audit/)
+[![Python](https://img.shields.io/pypi/pyversions/mcp-guard-audit.svg)](https://pypi.org/project/mcp-guard-audit/)
 [![CI](https://github.com/ianewsfr-a11y/mcp-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/ianewsfr-a11y/mcp-guard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ianewsfr-a11y/mcp-guard/blob/main/LICENSE)
 
 **Minimalist security audit CLI for MCP servers and AI agents.**
 
 `mcp-guard` reads your Model Context Protocol (MCP) configuration or a server's tools list and tells you, in one table, which tools can execute commands, write data, touch a database, reach the network, or run with elevated privileges, and which ones hide instructions for the model in their descriptions (**tool poisoning**). It also ships a prompt-injection test kit to check how your agent reacts to hostile tool output.
 
 By default it runs entirely offline and never executes the servers it audits. The opt-in `--live` mode starts them to read their real tools list.
+
+## ⚡ Quick Replication (Try it now)
+
+Audit a real MCP server in one command: the official reference **memory server** ([`@modelcontextprotocol/server-memory`](https://www.npmjs.com/package/@modelcontextprotocol/server-memory)). You need Python 3.10+ and Node.js (for `npx`).
+
+```bash
+pipx install mcp-guard-audit
+mcp-guard inspect --live --yes --server "npx -y @modelcontextprotocol/server-memory"
+```
+
+mcp-guard starts the server once, performs the MCP handshake, reads the tools it really exposes and audits each one:
+
+```
+┌────────┬─────────────────────────────────────┬──────────┬──────────────────────────────┐
+│ Type   │ Name                                │   Risk   │ Findings                     │
+├────────┼─────────────────────────────────────┼──────────┼──────────────────────────────┤
+│ tool   │ server-memory > create_entities     │   HIGH   │ write-operation: add, create │
+│ tool   │ server-memory > add_observations    │   HIGH   │ write-operation: add         │
+│ tool   │ server-memory > delete_entities     │   HIGH   │ write-operation: delete      │
+│ ...    │                                     │          │                              │
+│ tool   │ server-memory > search_nodes        │  MEDIUM  │ database: query              │
+│ tool   │ server-memory > read_graph          │   LOW    │ no risky capability detected │
+└────────┴─────────────────────────────────────┴──────────┴──────────────────────────────┘
+10 item(s) audited   CRITICAL 0   HIGH 6   MEDIUM 1   LOW 3
+```
+
+The config line alone looks harmless. The live audit shows that 6 of its 9 tools can write or delete data, which is expected for a memory server and exactly what you want to know before approving tool calls on autopilot.
+
+Now try it on your own setup:
+
+```bash
+mcp-guard inspect ~/.cursor/mcp.json --live      # or your claude_desktop_config.json
+```
+
+`--yes` skips the confirmation prompt. Drop it to see the exact command before anything runs. Without `--live`, nothing is executed at all.
+
+## Example
 
 ```
 $ mcp-guard inspect config_example.json
@@ -119,7 +159,7 @@ One strong signal, or two weak ones, makes the tool **CRITICAL**. A single weak 
 
 #### `--live`: audit the real tools
 
-A config file only says how to *start* a server. With `--live`, mcp-guard starts each stdio server (or contacts each Streamable HTTP server), performs the MCP handshake, reads the full paginated `tools/list`, and audits every tool it exposes:
+A config file only says how to *start* a server. With `--live`, mcp-guard starts each stdio server (or contacts each Streamable HTTP server), performs the MCP handshake, reads the full paginated `tools/list`, and audits every tool it exposes. No config file is needed to try a server: pass it with `--server` (repeatable, a command or an `http(s)` URL), as in `mcp-guard inspect --live --server "uvx mcp-server-fetch"`. `lock` accepts `--server` too.
 
 ```
 │ tool   │ memory > delete_entities     │   HIGH   │ write-operation: delete      │
