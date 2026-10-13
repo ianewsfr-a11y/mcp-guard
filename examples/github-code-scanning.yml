@@ -1,0 +1,29 @@
+# Copy to .github/workflows/mcp-guard.yml in a repository that versions MCP configs.
+name: mcp-guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to code scanning
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install git+https://github.com/ianewsfr-a11y/mcp-guard@v0.2.0
+      - name: Audit MCP config
+        run: mcp-guard inspect .vscode/mcp.json --format sarif -o mcp-guard.sarif --fail-on critical
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: mcp-guard.sarif
+          category: mcp-guard
