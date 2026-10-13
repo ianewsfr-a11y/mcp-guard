@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v0.8.0)
+## v0.8.0 (2026-10-13)
 
 ### Breaking
 - **A lock written by v0.8 cannot be read by v0.7.** Each server entry gains two fields: `pin` (command pinning, written by every `lock`) and `identity` (server name, version, protocol and a hash of its capabilities, written by `lock --live`). v0.7 validates locks strictly and rejects unknown fields. Upgrade every machine and CI job that reads the lock before you rewrite it with v0.8. A v0.7 lock is still read by v0.8.
