@@ -49,7 +49,10 @@
 - **Lock diff, hidden edits:** a description that changes only by invisible characters, look-alike letters or formatting is named as such, and the current text is shown escaped (code points and Unicode names).
 
 ### Changed
-- **Poisoning severity scale:** one signal MEDIUM; two different signals, or any invisible-text signal, HIGH; no CRITICAL. Previously a single strong signal ("ignore previous instructions", "do not tell the user") was CRITICAL. A CI gate with `--fail-on critical` no longer fails on poisoning: use `--fail-on high` or `medium`.
+- **Poisoning severity scale:**
+  - HIGH: an injection marker on its own (override, concealment, hidden tag, approval bypass), invisible text, or two different signals;
+  - MEDIUM: a URL, a path or a cross-reference on its own;
+  - no CRITICAL anymore: these were CRITICAL before. A CI gate with `--fail-on critical` no longer fails on poisoning, so use `--fail-on high`.
 - Reports without any poisoning finding are byte-identical to before. The three new categories only appear in SARIF when they report something.
 - **Lock file format 2.** Per tool, it stores the security hint values, a hash of the annotations and a hash of the normalized description. Format 1 locks are still read and compared as before.
 - **Lock diff severities:** description, annotation or input schema change HIGH; other metadata (title, output schema) MEDIUM, was HIGH; tool added MEDIUM; tool removed LOW.

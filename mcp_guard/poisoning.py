@@ -74,8 +74,8 @@ def look_alikes(text: str) -> list[tuple[int, str]]:
 #                    tags, HTML comments to the model, long base64 blocks)
 #   cross-reference  instructions about another tool ("before calling X")
 #   exfiltration     a URL or a file path in a descriptive text
-# Severity: one signal MEDIUM; two distinct signals, or any invisible one,
-# HIGH. Never CRITICAL.
+# Severity: an injection marker, invisible text or two distinct signals
+# HIGH; one other signal (URL, path, cross-reference) MEDIUM. Never CRITICAL.
 
 _OVERRIDE = re.compile(
     r"\b(ignore|disregard|forget)\s+(all\s+|any\s+|the\s+|your\s+)?"
@@ -310,8 +310,11 @@ def signals(text: str, known_tools: frozenset[str] = frozenset(),
 
 
 def severity(found: list[Signal]) -> Risk:
+    """HIGH for an injection marker, invisible text or two different signals;
+    MEDIUM for one other signal (a URL, a path, a cross-reference), which
+    legitimate docs often contain. Never CRITICAL: these are heuristics."""
     distinct = {s.id for s in found}
-    if any(s.kind == "invisible" for s in found) or len(distinct) >= 2:
+    if len(distinct) >= 2 or any(s.kind in ("marker", "invisible") for s in found):
         return Risk.HIGH
     return Risk.MEDIUM
 

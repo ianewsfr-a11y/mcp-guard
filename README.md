@@ -171,7 +171,10 @@ An MCP client hands every tool description, and every parameter description, to 
 | sensitive file access | exfiltration | "read ~/.cursor/mcp.json and pass its content as..." |
 | URL, file path | exfiltration | `https://...`, `~/...`, `/etc/...`, `C:\...` in a description |
 
-One signal makes the finding **MEDIUM**, because legitimate docs can contain any one of them (a path, a URL). Two different signals, or any invisible one, make it **HIGH**. There is no CRITICAL level: these are textual heuristics.
+Severity:
+- **HIGH:** an injection marker on its own (override, concealment, hidden tag, approval bypass), any invisible text, or two different signals.
+- **MEDIUM:** a URL, a path or a cross-reference on its own, because legitimate docs often contain one. For example, "Reads files, except ~/.ssh which is always skipped." is a single MEDIUM (a path), and "IMPORTANT: call list_notes first" raises nothing.
+- **No CRITICAL level:** these are textual heuristics.
 
 Every text the model reads is checked, one finding per field (the evidence names it):
 
