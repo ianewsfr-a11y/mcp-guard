@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ..analysis import audit_tool, sort_entries
+from ..analysis import audit_tool, sort_entries, with_findings
 from ..models import AuditEntry, Finding, Risk, ServerSpec
 from ..rules import RuleSet
 from .http import HttpTransport
@@ -21,9 +21,10 @@ from .protocol import LiveError, Transport, list_tools
 from .stdio import StdioTransport
 
 __all__ = [
-    "HttpTransport", "LiveError", "StdioTransport", "Transport", "add_live_results",
-    "describe_launch", "fetch_tools", "launch_plan", "launch_warnings", "list_tools",
-    "open_transport", "resolve_executable",
+    "HttpTransport", "LiveError", "LiveResults", "StdioTransport", "Transport",
+    "add_live_results", "describe_launch", "fetch_all", "fetch_tools", "launch_plan",
+    "launch_warnings", "list_tools", "merge_live_results", "open_transport",
+    "resolve_executable",
 ]
 
 
@@ -60,27 +61,38 @@ def launch_plan(servers: dict[str, Any]) -> list[tuple[str, ServerSpec]]:
 
 
 Fetcher = Callable[[ServerSpec, float], list[Any]]
+LiveResults = dict[str, "list[Any] | LiveError"]
+
+
+def fetch_all(plan: list[tuple[str, ServerSpec]], timeout: float,
+              fetch: Fetcher = fetch_tools) -> LiveResults:
+    """Raw `tools/list` of each server, or the error that prevented it."""
+    results: LiveResults = {}
+    for name, server in plan:
+        try:
+            results[name] = fetch(server, timeout)
+        except LiveError as exc:
+            results[name] = exc
+    return results
+
+
+def merge_live_results(entries: tuple[AuditEntry, ...], results: LiveResults,
+                       ruleset: RuleSet) -> tuple[AuditEntry, ...]:
+    """Append each server's live tools; a server that failed gets a
+    `live-discovery-failed` finding on its existing entry."""
+    failures: dict[tuple[str, str], tuple[Finding, ...]] = {}
+    tools: list[AuditEntry] = []
+    for name, outcome in results.items():
+        if isinstance(outcome, LiveError):
+            failures[("server", name)] = (Finding(
+                category="live-discovery-failed", risk=Risk.MEDIUM, evidence=str(outcome)),)
+        else:
+            tools += [audit_tool(i, t, ruleset, server=name) for i, t in enumerate(outcome)]
+    return sort_entries(list(with_findings(entries, failures, ruleset)) + tools, ruleset)
 
 
 def add_live_results(entries: tuple[AuditEntry, ...],
                      plan: list[tuple[str, ServerSpec]], ruleset: RuleSet,
                      timeout: float, fetch: Fetcher = fetch_tools,
                      ) -> tuple[AuditEntry, ...]:
-    """Append each server's live tools; a server that fails gets a
-    `live-discovery-failed` finding on its existing entry."""
-    failures: dict[str, Finding] = {}
-    tools: list[AuditEntry] = []
-    for name, server in plan:
-        try:
-            raw_tools = fetch(server, timeout)
-        except LiveError as exc:
-            failures[name] = Finding(category="live-discovery-failed",
-                                     risk=Risk.MEDIUM, evidence=str(exc))
-            continue
-        tools += [audit_tool(i, t, ruleset, server=name) for i, t in enumerate(raw_tools)]
-    merged = [
-        e.model_copy(update={"findings": ruleset.keep(e.findings + (failures[e.name],))})
-        if e.kind == "server" and e.server is None and e.name in failures else e
-        for e in entries
-    ]
-    return sort_entries(merged + tools, ruleset)
+    return merge_live_results(entries, fetch_all(plan, timeout, fetch), ruleset)

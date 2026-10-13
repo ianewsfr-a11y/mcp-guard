@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import re
 
-_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# C0/C1 controls, plus zero-width and bidi characters that can hide or
+# reorder text on screen.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")
 
 
 def printable(text: str, limit: int | None = None) -> str:
-    """Replace control characters (newlines, ANSI escapes...) with `?` so an
-    untrusted string cannot fake or erase terminal lines, and optionally cap
-    its length."""
+    """Replace control characters (newlines, ANSI escapes, bidi overrides,
+    zero-width characters...) with `?` so an untrusted string cannot fake,
+    hide or erase terminal lines, and optionally cap its length."""
     cleaned = _CONTROL.sub("?", str(text))
     if limit is not None and len(cleaned) > limit:
         return cleaned[: max(limit - 1, 0)] + "…"

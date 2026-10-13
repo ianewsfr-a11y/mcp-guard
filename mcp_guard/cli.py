@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.console import Console
@@ -11,8 +12,19 @@ from rich.markup import escape
 
 from . import __version__, render
 from .analysis import audit
-from .formats import discover, load_config
-from .live import add_live_results, describe_launch, launch_plan, launch_warnings
+from .formats import Discovered, discover, load_config
+from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
+from .inline import SOURCE_LABEL, servers_from_cli
+from .live import (
+    LiveError,
+    LiveResults,
+    describe_launch,
+    fetch_all,
+    launch_plan,
+    launch_warnings,
+    merge_live_results,
+)
+from .lock import DEFAULT_LOCK, compare, read_lock, snapshot, write_lock
 from .models import AuditEntry, ConfigFormatError, Risk
 from .payloads import build_payloads
 from .rules import DEFAULT_RULESET, RuleSet, load_ruleset
@@ -61,15 +73,37 @@ def _confirm_live(plan: list, assume_yes: bool) -> None:
         click.confirm("Continue?", abort=True, err=True)
 
 
-def _run_live(entries: tuple[AuditEntry, ...], servers: dict, ruleset: RuleSet,
-              timeout: float, assume_yes: bool) -> tuple[AuditEntry, ...]:
+def _live_results(servers: dict, timeout: float, assume_yes: bool) -> LiveResults:
     plan = launch_plan(servers)
     if not plan:
         stderr.print("[yellow]--live: no server to contact in this file.[/]")
-        return entries
+        return {}
     _confirm_live(plan, assume_yes)
     with stderr.status("Fetching tools/list from each server..."):
-        return add_live_results(entries, plan, ruleset, timeout)
+        return fetch_all(plan, timeout)
+
+
+def _check_lock(lock_file: Path, found: Discovered, results: LiveResults | None,
+                entries: tuple[AuditEntry, ...], ruleset: RuleSet) -> tuple[AuditEntry, ...]:
+    unreachable = {n for n, r in (results or {}).items() if isinstance(r, LiveError)}
+    try:
+        locked = read_lock(lock_file)
+        return compare(locked, snapshot(found, results, salt=locked.salt), entries, ruleset,
+                       unreachable)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+
+
+def _load_input(config_file: Path | None, servers: tuple[str, ...]) -> tuple[Any, str]:
+    """The config to audit and how to name it: a file, or --server values."""
+    if bool(config_file) == bool(servers):
+        raise InputError("give either CONFIG_FILE or one or more --server, not both")
+    try:
+        if config_file:
+            return load_config(config_file), config_file.name
+        return servers_from_cli(servers), SOURCE_LABEL
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
 
 
 def _emit(text: str, output: Path | None) -> None:
@@ -81,8 +115,12 @@ def _emit(text: str, output: Path | None) -> None:
 
 
 @cli.command()
-@click.argument("config_file", type=click.Path(exists=True, dir_okay=False,
-                                               path_type=Path))
+@click.argument("config_file", required=False,
+                type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--server", "servers", multiple=True, metavar="COMMAND_OR_URL",
+              help='A server given inline instead of CONFIG_FILE, e.g. '
+                   '"npx -y @modelcontextprotocol/server-memory" or an http(s) URL. '
+                   'Repeatable.')
 @click.option("--format", "fmt", type=_FORMATS, default="table", show_default=True,
               help="Report format. `sarif` is for GitHub code scanning.")
 @click.option("--json", "as_json", is_flag=True, hidden=True,
@@ -98,44 +136,146 @@ def _emit(text: str, output: Path | None) -> None:
               help="Do not ask for confirmation before --live.")
 @click.option("--timeout", type=click.FloatRange(min=1), default=20, show_default=True,
               help="Seconds to wait for each server in --live mode.")
+@click.option("--lock", "lock_file", type=click.Path(exists=True, dir_okay=False,
+                                                     path_type=Path),
+              help="Compare with a lock file from `mcp-guard lock` (rug-pull check).")
 @click.option("--fail-on", type=_FAIL_CHOICES, default="none", show_default=True,
               help="Exit with code 1 if any item reaches this risk level (for CI).")
-def inspect(config_file: Path, fmt: str, as_json: bool, output: Path | None,
-            rules_file: Path | None, live: bool, assume_yes: bool, timeout: float,
-            fail_on: str) -> None:
-    """Audit an MCP client config or a tools list (JSON, JSONC or YAML)."""
+def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_json: bool,
+            output: Path | None, rules_file: Path | None, live: bool, assume_yes: bool,
+            timeout: float, lock_file: Path | None, fail_on: str) -> None:
+    """Audit an MCP client config or a tools list (JSON, JSONC or YAML), or
+    servers given with --server."""
     fmt = "json" if as_json else fmt.lower()
+    data, source = _load_input(config_file, servers)
     try:
         ruleset = load_ruleset(rules_file) if rules_file else DEFAULT_RULESET
-        data = load_config(config_file)
         found = discover(data)
         entries = audit(data, ruleset)
     except ConfigFormatError as exc:
         raise InputError(str(exc)) from exc
 
-    if live:
-        entries = _run_live(entries, found.servers, ruleset, timeout, assume_yes)
+    results = _live_results(found.servers, timeout, assume_yes) if live else None
+    if results:
+        entries = merge_live_results(entries, results, ruleset)
+    if lock_file:
+        entries = _check_lock(lock_file, found, results, entries, ruleset)
 
     if fmt == "table":
-        render.render_table(entries, config_file.name, found.format)
+        render.render_table(entries, source, found.format if config_file else "--server")
     elif fmt == "json":
         _emit(render.entries_to_json(entries), output)
     else:
-        text = config_file.read_text(encoding="utf-8-sig")
-        report = to_sarif(entries, ruleset, _artifact_uri(config_file), text)
+        text = config_file.read_text(encoding="utf-8-sig") if config_file else ""
+        uri = _artifact_uri(config_file) if config_file else SOURCE_LABEL
+        report = to_sarif(entries, ruleset, uri, text)
         _emit(json.dumps(report, indent=2), output)
 
     if fail_on != "none" and any(e.risk >= Risk[fail_on.upper()] for e in entries):
         raise SystemExit(1)
 
 
+@cli.command()
+@click.argument("config_file", required=False,
+                type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--server", "servers", multiple=True, metavar="COMMAND_OR_URL",
+              help='A server given inline instead of CONFIG_FILE, e.g. '
+                   '"npx -y @modelcontextprotocol/server-memory" or an http(s) URL. '
+                   'Repeatable.')
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path),
+              default=DEFAULT_LOCK, show_default=True, help="Lock file to write.")
+@click.option("--live", is_flag=True,
+              help="Also fingerprint the tools each server really serves.")
+@click.option("--yes", "assume_yes", is_flag=True,
+              help="Do not ask for confirmation before --live.")
+@click.option("--timeout", type=click.FloatRange(min=1), default=20, show_default=True,
+              help="Seconds to wait for each server in --live mode.")
+def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live: bool,
+         assume_yes: bool, timeout: float) -> None:
+    """Fingerprint servers and tools into a lock file, to detect rug pulls later."""
+    data, _ = _load_input(config_file, servers)
+    try:
+        found = discover(data)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+    results = _live_results(found.servers, timeout, assume_yes) if live else None
+    failed = {n: r for n, r in (results or {}).items() if isinstance(r, LiveError)}
+    if failed:
+        details = "; ".join(f"{printable(n, 60)}: {e}" for n, e in failed.items())
+        raise InputError(f"cannot lock, some servers could not be reached: {details}")
+    snap = snapshot(found, results)
+    write_lock(snap, output)
+    again = " --live" if live else ""
+    target = (str(config_file) if config_file
+              else " ".join(f'--server "{v}"' for v in servers))
+    stderr.print(f"Locked {len(snap.servers)} server(s) and {len(snap.tools)} tool(s) "
+                 f"({snap.mode} mode) in {escape(str(output))}.\n"
+                 f"Commit it, then check with: mcp-guard inspect "
+                 f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+def _confirm_run(target: Path, executable: str, args: list[str], count: int,
+                 assume_yes: bool) -> None:
+    command = " ".join([executable, *args])
+    stderr.print(f"[bold yellow]--run will start this agent {count} time(s):[/] "
+                 f"{escape(printable(command, 300))}")
+    stderr.print("[dim]It runs with your user's permissions and may call paid APIs.[/]")
+    if not assume_yes:
+        click.confirm("Continue?", abort=True, err=True)
+
+
+def _run_injection(target: Path, only: str | None, timeout: float,
+                   assume_yes: bool) -> list[ScenarioResult]:
+    scenarios = build_scenarios()
+    if only:
+        wanted = {s.strip().upper() for s in only.split(",") if s.strip()}
+        unknown = wanted - {s.id for s in scenarios}
+        if unknown:
+            raise InputError(f"unknown scenario id(s): {', '.join(sorted(unknown))}")
+        scenarios = tuple(s for s in scenarios if s.id in wanted)
+    executable, args = agent_command(target)
+    _confirm_run(target, executable, args, len(scenarios), assume_yes)
+    results = []
+    with stderr.status("Running injection scenarios...") as status:
+        for scenario in scenarios:
+            status.update(f"Running {scenario.id} ({scenario.payload.technique})...")
+            results.append(run_scenario(executable, args, scenario, timeout))
+    return results
+
+
 @cli.command("test-injection")
-@click.argument("server_script", type=click.Path(exists=True, dir_okay=False))
-@click.option("--json", "as_json", is_flag=True, help="Output payloads as JSON.")
-def test_injection(server_script: str, as_json: bool) -> None:
-    """Print MCP-oriented prompt-injection payloads to test an agent."""
-    payloads = build_payloads()
+@click.argument("target", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--run", is_flag=True,
+              help="Run TARGET as an agent (mcp-guard-harness/1 over stdio) against "
+                   "every payload and report what it did.")
+@click.option("--only", metavar="IDS", help="With --run: comma-separated scenario ids.")
+@click.option("--timeout", type=click.FloatRange(min=1), default=60, show_default=True,
+              help="With --run: seconds per scenario.")
+@click.option("--yes", "assume_yes", is_flag=True,
+              help="With --run: do not ask for confirmation.")
+@click.option("--json", "as_json", is_flag=True, help="Output JSON.")
+def test_injection(target: Path, run: bool, only: str | None, timeout: float,
+                   assume_yes: bool, as_json: bool) -> None:
+    """Prompt-injection kit for agents.
+
+    Without --run, prints the payloads to inject by hand. With --run, plays a
+    hostile MCP server against the agent script TARGET and exits with 1 if it
+    was compromised in any scenario (2 if a scenario could not run).
+    """
+    if not run:
+        payloads = build_payloads()
+        if as_json:
+            click.echo(json.dumps([p.model_dump() for p in payloads], indent=2))
+        else:
+            render.render_payloads(payloads, str(target))
+        return
+    results = _run_injection(target, only, timeout, assume_yes)
     if as_json:
-        click.echo(json.dumps([p.model_dump() for p in payloads], indent=2))
+        click.echo(json.dumps([r.model_dump() for r in results], indent=2))
     else:
-        render.render_payloads(payloads, server_script)
+        render.render_injection_results(results, target.name)
+    verdicts = {r.verdict for r in results}
+    if "FAIL" in verdicts:
+        raise SystemExit(1)
+    if "ERROR" in verdicts:
+        raise SystemExit(2)

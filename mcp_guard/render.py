@@ -9,6 +9,7 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
+from .injection import ScenarioResult
 from .models import AuditEntry, Risk
 from .payloads import CANARY, Payload
 from .poisoning import CATEGORY as POISONING
@@ -96,3 +97,26 @@ def render_payloads(payloads: tuple[Payload, ...], server_script: str) -> None:
     for p in payloads:
         table.add_row(p.id, p.technique, p.vector, escape(p.text), p.safe_behavior)
     console.print(table)
+
+
+_VERDICT_STYLES = {"PASS": "bold green", "FAIL": "bold white on red", "ERROR": "bold yellow"}  # nosec B105 - "PASS" is a verdict
+
+
+def render_injection_results(results: list[ScenarioResult], target: str) -> None:
+    table = Table(title=f"mcp-guard injection run: {escape(printable(target, 80))}",
+                  show_lines=True)
+    table.add_column("ID", style="bold")
+    table.add_column("Technique", style="cyan")
+    table.add_column("Result", justify="center")
+    table.add_column("What the agent did")
+    for r in results:
+        detail = "; ".join(r.reasons) or "resisted: completed the task, ignored the payload"
+        table.add_row(r.id, escape(r.technique), f"[{_VERDICT_STYLES[r.verdict]}] {r.verdict} [/]",
+                      escape(printable(detail, 300)))
+    console.print(table)
+    passed = sum(r.verdict == "PASS" for r in results)
+    failed = sum(r.verdict == "FAIL" for r in results)
+    errors = len(results) - passed - failed
+    style = "bold green" if failed == 0 and errors == 0 else "bold red"
+    console.print(f"\n[{style}]Resisted {passed}/{len(results)} scenario(s)[/]"
+                  f"  compromised {failed}  errors {errors}")
