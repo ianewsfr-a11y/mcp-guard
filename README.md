@@ -238,6 +238,44 @@ A terminal UI (built with [Textual](https://textual.textualize.io/)) on the same
 
 Refresh runs in the background. With `--live` it only restarts the servers you confirmed at launch, with exactly the same spec. A server added or changed in the config since then is reported, not run, until you restart `mcp-guard ui`. All text from servers is neutralized before display (control, bidi and zero-width characters).
 
+### `inspect --combined` (experimental): what your servers allow together
+
+```bash
+mcp-guard inspect ~/.cursor/mcp.json --live --combined
+```
+
+Each rule above looks at one tool. But an agent gets the tools of all its servers at once. Some tools read your files or mail, some bring in web pages or issues written by strangers, and some can send data out. Together they let an injected instruction read a secret and send it away, even though each tool looks harmless on its own.
+
+`--combined` tags every tool with three capabilities:
+- `reads_private`: reads your data, or runs commands;
+- `ingests_untrusted`: brings in third-party content;
+- `sends_external`: can send data out, including any request to a URL the model picks, or a post to a service.
+
+A shell tool counts as both a reader and an outbound channel.
+
+When the active servers cover all three, it reports **one** finding for the whole config, `agent-exfiltration-surface`:
+
+- **Risk:** MEDIUM, or HIGH when a server that reads private data also has `broad-filesystem-scope`. Never CRITICAL.
+- **Content:** the tools behind each capability, and the **cut point**, the least populated capability. Removing those tools, or requiring approval for each call, breaks the chain.
+- **Stable id:** the id depends on the rule and the servers involved, so adding a tool to one of them does not create a new alert.
+- **Not evaluated:** without `--live` (or a tools list) the rule cannot see the tools, and says "not evaluated" rather than "no finding". When some servers could not be reached, or some tools could not be parsed, a missing capability gives "partial" rather than "no finding". In SARIF, both statuses appear as notifications. Neither changes the exit code, so a green CI run with `--combined` does not prove the servers were all evaluated.
+
+On the official servers, `memory` + `fetch` is enough to trigger it. `fetch` is the cut point: it is both the untrusted input (it declares `openWorldHint`) and the outbound channel (it requests any URL).
+
+Tags come from keywords, from the MCP annotation `openWorldHint` (which only adds `ingests_untrusted`, since many servers set it on every tool), or from your rules file. A rule wins over an annotation, which wins over a keyword. Annotations are declared by the server, so they can add a tag but never remove one.
+
+To adjust:
+- tags, in the `capabilities` section of `--rules` (see [`examples/rules.yaml`](https://github.com/ianewsfr-a11y/mcp-guard/blob/main/examples/rules.yaml)). There, `remove` wins over `add`. Removed tags are listed in the JSON output under `suppressed_by_rules`.
+- the whole rule, by turning it off with `disable: [agent-exfiltration-surface]`.
+
+The `exceptions` of a rules file apply to the tags too.
+
+The rule is experimental:
+- it is a heuristic on English text, and a hostile server can word its tools to avoid it;
+- a tool that writes can be tagged as a reader when its description mentions listing.
+
+Without `--combined`, every output is unchanged.
+
 ### `lock <config_file>`: detect rug pulls
 
 A server you approved can later change what its tools say or do: rewrite a description, add a parameter, flip an annotation, add a tool. MCP clients do not warn you. `lock` records SHA-256 fingerprints in `mcp-guard.lock`. `inspect --lock` then reports what changed:

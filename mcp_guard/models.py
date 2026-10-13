@@ -75,7 +75,7 @@ class AuditEntry(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["server", "tool"]
+    kind: Literal["server", "tool", "config"]  # config: a rule on all servers at once
     name: str
     findings: tuple[Finding, ...]
     server: str | None = None

@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from .capabilities import CapabilityOverride
 from .context import DEFAULT_EXCEPTIONS, effective_tokens
 from .models import ConfigFormatError, Finding, Risk
 
@@ -127,6 +128,16 @@ BUILTIN_CHECKS: dict[str, str] = {
 }
 
 
+# Opt-in checks: listed in SARIF only when they report something, so that
+# outputs without the opt-in flag do not change.
+EXPERIMENTAL_CHECKS: dict[str, str] = {
+    "agent-exfiltration-surface": (
+        "Together, the active servers let an agent read private data, ingest untrusted "
+        "content and send data out: a prompt injection can chain them into an "
+        "exfiltration (experimental, inspect --combined)."),
+}
+
+
 class RuleSet(BaseModel):
     """The active rules plus names of servers/tools to leave out of the report."""
 
@@ -137,6 +148,8 @@ class RuleSet(BaseModel):
     disabled: frozenset[str] = frozenset()
     exceptions: dict[str, frozenset[str]] = Field(
         default_factory=lambda: dict(DEFAULT_EXCEPTIONS))
+    # capability tag overrides, for the --combined rule
+    capabilities: tuple[CapabilityOverride, ...] = ()
 
     def keep(self, findings: tuple[Finding, ...]) -> tuple[Finding, ...]:
         """Drop findings of disabled categories (incl. dedicated checks)."""
@@ -162,7 +175,8 @@ class RuleSet(BaseModel):
         for rule in self.rules:
             if rule.category == category and rule.description:
                 return rule.description
-        return BUILTIN_CHECKS.get(category, category.replace("-", " ").capitalize())
+        known = {**BUILTIN_CHECKS, **EXPERIMENTAL_CHECKS}
+        return known.get(category, category.replace("-", " ").capitalize())
 
 
 DEFAULT_RULESET = RuleSet()
@@ -178,6 +192,7 @@ class RulesFile(BaseModel):
     rules: list[Rule] = Field(default_factory=list)
     ignore: list[str] = Field(default_factory=list)
     exceptions: dict[str, list[str]] = Field(default_factory=dict)
+    capabilities: list[CapabilityOverride] = Field(default_factory=list)
 
     @field_validator("exceptions")
     @classmethod
@@ -194,10 +209,11 @@ class RulesFile(BaseModel):
         duplicates = sorted({c for c in categories if categories.count(c) > 1})
         if duplicates:
             raise ValueError(f"duplicate rule categories: {duplicates}")
-        reserved = sorted(set(categories) & set(BUILTIN_CHECKS))
+        reserved = sorted(set(categories) & (set(BUILTIN_CHECKS) | set(EXPERIMENTAL_CHECKS)))
         if reserved:
             raise ValueError(f"reserved for built-in checks, pick another name: {reserved}")
-        known = {r.category for r in DEFAULT_RULES} | set(BUILTIN_CHECKS) | set(categories)
+        known = ({r.category for r in DEFAULT_RULES} | set(BUILTIN_CHECKS)
+                 | set(EXPERIMENTAL_CHECKS) | set(categories))
         unknown = sorted(set(self.disable) - known)
         if unknown:
             raise ValueError(f"unknown categories in `disable`: {unknown}")
@@ -212,7 +228,8 @@ class RulesFile(BaseModel):
         for keyword, contexts in self.exceptions.items():
             exceptions[keyword] = exceptions.get(keyword, frozenset()) | frozenset(contexts)
         return RuleSet(rules=kept + custom, ignore=frozenset(self.ignore),
-                       disabled=frozenset(self.disable), exceptions=exceptions)
+                       disabled=frozenset(self.disable), exceptions=exceptions,
+                       capabilities=tuple(self.capabilities))
 
 
 def load_ruleset(path: Path) -> RuleSet:

@@ -7,6 +7,8 @@ import re
 from typing import Any
 
 from . import __version__
+from .combined import RULE as COMBINED_RULE
+from .combined import CombinedResult
 from .models import AuditEntry, Finding, Risk
 from .rules import BUILTIN_CHECKS, RuleSet
 
@@ -102,22 +104,57 @@ def _result(entry: AuditEntry, finding: Finding, uri: str, line: int) -> dict[st
     }
 
 
+_SERVER_KEYS = ("mcpServers", "servers", "context_servers")
+
+
+def _servers_line(text: str) -> int:
+    """Line of the key that holds the servers, for a config-level finding."""
+    for key in _SERVER_KEYS:
+        if _starts(text, key):
+            return locate(text, key)
+    return 1
+
+
+def _config_result(entry: AuditEntry, finding: Finding, uri: str, text: str,
+                   combined: CombinedResult | None) -> dict[str, Any]:
+    result = _result(entry, finding, uri, _servers_line(text))
+    servers = list(combined.servers) if combined else []
+    if servers:
+        result["relatedLocations"] = [
+            {"id": index, "message": {"text": f"server '{name}'"},
+             "physicalLocation": {"artifactLocation": {"uri": uri},
+                                  "region": {"startLine": locate(text, name)}}}
+            for index, name in enumerate(servers)]
+    return result
+
+
+def _notifications(combined: CombinedResult | None) -> list[dict[str, Any]]:
+    if combined is None or combined.status not in ("not-evaluated", "partial"):
+        return []
+    return [{"level": "note",
+             "message": {"text": f"{COMBINED_RULE} {combined.status}: {combined.reason}"}}]
+
+
 def to_sarif(entries: tuple[AuditEntry, ...], ruleset: RuleSet, uri: str,
-             text: str) -> dict[str, Any]:
+             text: str, combined: CombinedResult | None = None) -> dict[str, Any]:
+    """Without `combined` (and without config entries), the report is exactly
+    that of v0.6."""
     results = [
-        _result(entry, finding, uri, locate(text, entry.server or entry.name))
+        _config_result(entry, finding, uri, text, combined) if entry.kind == "config"
+        else _result(entry, finding, uri, locate(text, entry.server or entry.name))
         for entry in entries for finding in entry.findings
     ]
-    return {
-        "$schema": SARIF_SCHEMA,
-        "version": "2.1.0",
-        "runs": [{
-            "tool": {"driver": {
-                "name": "mcp-guard",
-                "version": __version__,
-                "informationUri": INFORMATION_URI,
-                "rules": _rules(ruleset, entries),
-            }},
-            "results": results,
-        }],
+    run: dict[str, Any] = {
+        "tool": {"driver": {
+            "name": "mcp-guard",
+            "version": __version__,
+            "informationUri": INFORMATION_URI,
+            "rules": _rules(ruleset, entries),
+        }},
+        "results": results,
     }
+    notifications = _notifications(combined)
+    if notifications:
+        run["invocations"] = [{"executionSuccessful": True,
+                               "toolExecutionNotifications": notifications}]
+    return {"$schema": SARIF_SCHEMA, "version": "2.1.0", "runs": [run]}
