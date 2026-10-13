@@ -49,6 +49,7 @@
 - **Lock diff, hidden edits:** a description that changes only by invisible characters, look-alike letters or formatting is named as such, and the current text is shown escaped (code points and Unicode names).
 
 ### Changed
+- **Textual is now optional.** `mcp-guard ui` needs the `ui` extra: `pip install "mcp-guard-audit[ui]"`, or with pipx `pipx install --force "mcp-guard-audit[ui]"`. The base install no longer pulls Textual, which keeps CI installs light. All other commands work without it. Without it, `mcp-guard ui` exits with code 1 before doing any work, and says how to add the extra, naming the installed distribution. **Upgrading an existing install removes the UI until you add the extra**: run `pipx install --force "mcp-guard-audit[ui]"`, or `pip install --upgrade "mcp-guard-audit[ui]"`.
 - **Poisoning severity scale:**
   - HIGH: an injection marker on its own (override, concealment, hidden tag, approval bypass), invisible text, or two different signals;
   - MEDIUM: a URL, a path or a cross-reference on its own;

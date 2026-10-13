@@ -89,6 +89,8 @@ pip install mcp-guard-audit
 pip install git+https://github.com/ianewsfr-a11y/mcp-guard
 ```
 
+The terminal UI (`mcp-guard ui`) is an optional extra, so CI installs stay light. Add it with `pipx install "mcp-guard-audit[ui]"` or `pip install "mcp-guard-audit[ui]"`. Without it, every other command works, and `mcp-guard ui` prints the exact command to add it.
+
 If `pipx` is not found (common on Windows), either use `pip`, or install pipx once:
 
 ```bash
@@ -240,6 +242,8 @@ mcp-guard ui --live --server "npx -y @modelcontextprotocol/server-memory"
 ```
 
 ![mcp-guard ui](https://raw.githubusercontent.com/ianewsfr-a11y/mcp-guard/main/docs/images/ui.png)
+
+Needs the `ui` extra: `pip install "mcp-guard-audit[ui]"` (see [Installation](#installation)).
 
 A terminal UI (built with [Textual](https://textual.textualize.io/)) on the same audit as `inspect`, with the same options (`--server`, `--live`, `--lock`, `--rules`).
 
