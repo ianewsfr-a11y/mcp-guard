@@ -109,6 +109,8 @@ DEFAULT_RULES: tuple[Rule, ...] = (
 
 # Findings produced by dedicated checks rather than keyword rules.
 BUILTIN_CHECKS: dict[str, str] = {
+    "tool-poisoning": ("The tool's metadata hides instructions for the model (hidden tags, "
+                       "override or concealment phrases, invisible characters)."),
     "hardcoded-secret": "A credential is stored in plain text in the configuration.",
     "broad-filesystem-scope": "The server is given access to a root or home directory.",
     "insecure-transport": "A remote server is reached over plain HTTP.",

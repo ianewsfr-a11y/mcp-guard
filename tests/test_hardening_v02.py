@@ -167,8 +167,12 @@ class _Redirect(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
+        # Read the body first: answering early makes Windows reset the
+        # connection now and then, which turns the 302 into a socket error.
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.send_response(302)
         self.send_header("Location", "http://127.0.0.1:9/steal")
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
 

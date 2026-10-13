@@ -19,7 +19,8 @@ _LEVEL = {Risk.LOW: "note", Risk.MEDIUM: "warning", Risk.HIGH: "error",
 # GitHub bands: >= 9.0 critical, 7.0-8.9 high, 4.0-6.9 medium, 0.1-3.9 low.
 _SECURITY_SEVERITY = {Risk.LOW: "2.0", Risk.MEDIUM: "5.5", Risk.HIGH: "8.0",
                       Risk.CRITICAL: "9.5"}
-_BUILTIN_RISK = {"hardcoded-secret": Risk.HIGH, "broad-filesystem-scope": Risk.HIGH}
+_BUILTIN_RISK = {"tool-poisoning": Risk.CRITICAL, "hardcoded-secret": Risk.HIGH,
+                 "broad-filesystem-scope": Risk.HIGH}
 
 
 def rule_id(category: str) -> str:

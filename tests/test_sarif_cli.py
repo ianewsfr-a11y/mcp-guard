@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+import mcp_guard
 from mcp_guard import DEFAULT_RULESET, audit
 from mcp_guard.cli import cli
 from mcp_guard.sarif import locate, to_sarif
@@ -140,4 +141,4 @@ def test_python_dash_m_entry_point():
 
     out = subprocess.run([sys.executable, "-m", "mcp_guard", "--version"],
                          capture_output=True, text=True, check=True)
-    assert "0.2.0" in out.stdout
+    assert mcp_guard.__version__ in out.stdout

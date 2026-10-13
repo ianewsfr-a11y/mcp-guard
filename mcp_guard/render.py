@@ -11,6 +11,7 @@ from rich.table import Table
 
 from .models import AuditEntry, Risk
 from .payloads import CANARY, Payload
+from .poisoning import CATEGORY as POISONING
 from .text import printable
 
 console = Console()
@@ -49,6 +50,22 @@ def render_table(entries: tuple[AuditEntry, ...], source: str,
     counts = {r: sum(1 for e in entries if e.risk == r) for r in Risk}
     summary = "  ".join(f"{_risk_label(r)} {counts[r]}" for r in reversed(Risk))
     console.print(f"\n{len(entries)} item(s) audited  {summary}")
+    _poisoning_alert(entries)
+
+
+def _poisoning_alert(entries: tuple[AuditEntry, ...]) -> None:
+    poisoned = [e.label for e in entries
+                if any(f.category == POISONING for f in e.findings)]
+    if not poisoned:
+        return
+    names = ", ".join(escape(printable(label, 60)) for label in poisoned[:10])
+    more = f" and {len(poisoned) - 10} more" if len(poisoned) > 10 else ""
+    console.print(Panel(
+        f"[bold]{len(poisoned)} tool(s) carry hidden instructions for the model:[/] "
+        f"{names}{more}.\nAny agent connected to this server reads them as if they "
+        f"came from you. Do not enable these tools until their descriptions and "
+        f"parameter descriptions have been reviewed.",
+        title="TOOL POISONING DETECTED", border_style="bold red"))
 
 
 def entries_to_json(entries: tuple[AuditEntry, ...]) -> str:

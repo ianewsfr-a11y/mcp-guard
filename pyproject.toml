@@ -5,23 +5,33 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-guard"
 dynamic = ["version"]
-description = "Minimalist security audit CLI for MCP servers and AI agents"
+description = "Security audit CLI for MCP servers and AI agents: risky tools, tool poisoning, leaked secrets"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
-keywords = ["mcp", "model-context-protocol", "security", "ai-agents", "llm", "audit"]
+authors = [{ name = "ianewsfr-a11y" }]
+keywords = [
+    "mcp", "model-context-protocol", "security", "ai-agents", "llm", "audit",
+    "prompt-injection", "tool-poisoning", "sarif",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
 ]
 dependencies = [
     "click>=8.1.0",
@@ -38,10 +48,15 @@ mcp-guard = "mcp_guard.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/ianewsfr-a11y/mcp-guard"
+Repository = "https://github.com/ianewsfr-a11y/mcp-guard"
 Issues = "https://github.com/ianewsfr-a11y/mcp-guard/issues"
+Changelog = "https://github.com/ianewsfr-a11y/mcp-guard/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "mcp_guard/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_guard"]
 
 [tool.hatch.build.targets.sdist]
 include = ["mcp_guard", "tests", "examples", "README.md", "CHANGELOG.md", "LICENSE",

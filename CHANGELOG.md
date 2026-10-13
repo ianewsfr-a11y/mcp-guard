@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0
+
+### Added
+- **Tool poisoning detection** (`tool-poisoning`): instructions for the model hidden in tool descriptions, parameter descriptions and schema titles. Strong signals (override phrases, concealment from the user, smuggled Unicode tag characters) or two weak ones (hidden tags such as `<IMPORTANT>`/`<system>`, HTML comments addressed to the model, directives about another tool, sensitive file access such as `~/.ssh` or `mcp.json`, invisible characters) give CRITICAL; a single weak signal gives HIGH. Text is normalized first (HTML entities, invisible characters, NFKC, Cyrillic/Greek look-alikes, curly quotes, whitespace) and size-capped against ReDoS. Works with `--live`.
+- `inspect` prints a **TOOL POISONING DETECTED** alert under the table.
+- `examples/poisoned_tools.json` to try it.
+- **PyPI publishing**: `pipx install mcp-guard`. Releases are published by `.github/workflows/publish.yml` with Trusted Publishing (OIDC, no stored token), after the tests pass and the tag matches the package version.
+- `py.typed` marker, richer package metadata.
+
 ## v0.2.0
 
 ### Added
