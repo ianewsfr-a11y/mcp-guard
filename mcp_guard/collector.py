@@ -113,6 +113,7 @@ def _captured(base: ServerSnapshot, outcome: Outcome) -> ServerSnapshot:
         "resources": tuple(r for r in resources if isinstance(r, ResourceSnapshot)),
         "prompts": tuple(p for p in prompts if isinstance(p, PromptSnapshot)),
         "capture_warnings": tuple(warnings),
+        "instructions": capture.instructions,
     })
 
 

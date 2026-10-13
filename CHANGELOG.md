@@ -3,6 +3,24 @@
 ## Unreleased
 
 ### Added
+- **Hidden-instruction detection on every text surface** of a snapshot, one finding per field:
+  - `tool-poisoning`: name, title, description, input and output schema docs, string annotations;
+  - `resource-poisoning`: resource name, title, description, URI, MIME type;
+  - `prompt-poisoning`: prompt name, title, description, argument descriptions;
+  - `server-instruction-poisoning`: the server's `instructions`, now captured with `--live`.
+
+  Each finding has a stable id: a hash of rule, server, item and field path, so the id survives the attacker rewording the text. Evidence shows what matched after normalization and how the text is written (escaped).
+- **New signals:**
+  - secret or hidden instruction, approval bypass;
+  - long base64 block, variation selectors, invisible characters written as HTML entities;
+  - "before calling <another tool of the snapshot>", "always pass the full conversation";
+  - any URL or absolute/home path in a description (but not in a resource URI);
+  - wider override and concealment wording ("ignore previous rules", "skip informing the user").
+- **Coverage:**
+  - schema `enum`, `const`, `default` and `examples` strings and property names are scanned;
+  - long texts are scanned head and tail, and the cut is reported HIGH, as are fields left out;
+  - three or more flagged fields in one item make each of their findings HIGH;
+  - server `instructions` are capped at 20,000 characters, stored with URL credentials removed, and compared by `snapshot diff`.
 - **`mcp-guard snapshot diff OLD NEW`**: compares two snapshots and shows how the attack surface moved.
   - **What it reports:** servers and tools added, removed or changed.
   - **Tool changes:** for a tool kept in both, the description (old and new text), input schema, annotations and metadata, path by path (`$.properties.note`), plus its risk and finding categories before and after.
@@ -31,6 +49,11 @@
 - **Lock diff, hidden edits:** a description that changes only by invisible characters, look-alike letters or formatting is named as such, and the current text is shown escaped (code points and Unicode names).
 
 ### Changed
+- **Poisoning severity scale:**
+  - HIGH: an injection marker on its own (override, concealment, hidden tag, approval bypass), invisible text, or two different signals;
+  - MEDIUM: a URL, a path or a cross-reference on its own;
+  - no CRITICAL anymore: these were CRITICAL before. A CI gate with `--fail-on critical` no longer fails on poisoning, so use `--fail-on high`.
+- Reports without any poisoning finding are byte-identical to before. The three new categories only appear in SARIF when they report something.
 - **Lock file format 2.** Per tool, it stores the security hint values, a hash of the annotations and a hash of the normalized description. Format 1 locks are still read and compared as before.
 - **Lock diff severities:** description, annotation or input schema change HIGH; other metadata (title, output schema) MEDIUM, was HIGH; tool added MEDIUM; tool removed LOW.
 - **Key order never matters:** snapshot digests sort servers by name, and lock files are written with servers and tools in a fixed order.

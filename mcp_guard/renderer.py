@@ -263,7 +263,7 @@ def _field_lines(change: FieldChange) -> list[str]:
     title = f"[bold]{change.field}[/]"
     if change.paths:
         return [title, *_path_lines(change)]
-    if change.field == "description":
+    if change.field in ("description", "instructions"):
         return _text_lines(change)
     return [f"{title}: {_short(change.old, 60)} -> {_short(change.new, 60)}"]
 

@@ -24,10 +24,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from .analyzer import analyze, server_entry, tool_entry
+from .analyzer import analyze, known_names, server_entry, tool_entry
 from .capabilities import CAPABILITIES, Capability
 from .combined import CombinedResult, evaluate
 from .models import AuditEntry
+from .redact import stored_text
 from .rules import DEFAULT_RULESET, RuleSet
 from .snapshot import MCPSnapshot, ServerSnapshot, ToolSnapshot
 
@@ -37,7 +38,8 @@ MAX_VALUE_CHARS = 2_000  # bigger old/new values are replaced by their size
 
 Change = Literal["added", "removed", "changed"]
 FieldName = Literal["description", "input_schema", "annotations", "metadata", "parse_error",
-                    "risk", "spec", "live_status", "live_error", "capture_warnings",
+                    "risk", "spec", "live_status", "live_error", "instructions",
+                    "capture_warnings",
                     "resources", "prompts", "mode", "format"]
 
 
@@ -193,6 +195,7 @@ def _value_field(field: FieldName, old: Any, new: Any) -> FieldChange | None:
 # --- tools ----------------------------------------------------------------------
 
 ToolKey = tuple[str | None, str, int]
+_Known = tuple[frozenset[str], frozenset[str]]  # tool names in the old and new snapshots
 
 
 def _keyed(tools: list[ToolSnapshot]) -> dict[ToolKey, ToolSnapshot]:
@@ -221,10 +224,10 @@ def _tool_fields(old: ToolSnapshot, new: ToolSnapshot) -> list[FieldChange]:
 
 
 def _tool_diff(key: ToolKey, old: ToolSnapshot | None, new: ToolSnapshot | None,
-               ruleset: RuleSet) -> ItemDiff | None:
+               ruleset: RuleSet, known: _Known) -> ItemDiff | None:
     server, name, rank = key
-    before = tool_entry(old, ruleset) if old else None
-    after = tool_entry(new, ruleset) if new else None
+    before = tool_entry(old, ruleset, known[0]) if old else None
+    after = tool_entry(new, ruleset, known[1]) if new else None
     changes = _tool_fields(old, new) if old and new else []
     risk = _value_field("risk", before.risk.name if before else None,
                         after.risk.name if after else None)
@@ -245,7 +248,8 @@ def _tool_diff(key: ToolKey, old: ToolSnapshot | None, new: ToolSnapshot | None,
 def _tools(old: MCPSnapshot, new: MCPSnapshot, ruleset: RuleSet) -> list[ItemDiff]:
     before, after = _keyed(list(old.all_tools())), _keyed(list(new.all_tools()))
     order = list(before) + [k for k in after if k not in before]
-    diffs = [_tool_diff(k, before.get(k), after.get(k), ruleset) for k in order]
+    known = (known_names(old), known_names(new))
+    diffs = [_tool_diff(k, before.get(k), after.get(k), ruleset, known) for k in order]
     return [d for d in diffs if d is not None]
 
 
@@ -264,12 +268,18 @@ def _by_key(items: tuple[Any, ...], key: str) -> dict[str, Any]:
             for item in items}
 
 
+def _stored(text: str | None) -> str | None:
+    """Instructions as a snapshot file stores them (URL credentials removed)."""
+    return stored_text(text) if text is not None else None
+
+
 def _server_fields(old: ServerSnapshot, new: ServerSnapshot) -> list[FieldChange]:
     candidates = (
         _json_field("spec", _spec(old), _spec(new)),
         _value_field("parse_error", old.parse_error, new.parse_error),
         _value_field("live_status", old.live_status, new.live_status),
         _value_field("live_error", old.live_error, new.live_error),
+        _value_field("instructions", _stored(old.instructions), _stored(new.instructions)),
         _json_field("capture_warnings", list(old.capture_warnings),
                     list(new.capture_warnings)),
         _json_field("resources", _by_key(old.resources, "uri"), _by_key(new.resources, "uri")),
@@ -279,9 +289,9 @@ def _server_fields(old: ServerSnapshot, new: ServerSnapshot) -> list[FieldChange
 
 
 def _server_diff(name: str, old: ServerSnapshot | None, new: ServerSnapshot | None,
-                 ruleset: RuleSet) -> ItemDiff | None:
-    before = server_entry(old, ruleset) if old else None
-    after = server_entry(new, ruleset) if new else None
+                 ruleset: RuleSet, known: _Known) -> ItemDiff | None:
+    before = server_entry(old, ruleset, known[0]) if old else None
+    after = server_entry(new, ruleset, known[1]) if new else None
     changes = _server_fields(old, new) if old and new else []
     risk = _value_field("risk", before.risk.name if before else None,
                         after.risk.name if after else None)
@@ -304,7 +314,8 @@ def _servers(old: MCPSnapshot, new: MCPSnapshot, ruleset: RuleSet) -> list[ItemD
     before = {s.name: s for s in old.servers}
     after = {s.name: s for s in new.servers}
     order = list(before) + [n for n in after if n not in before]
-    diffs = [_server_diff(n, before.get(n), after.get(n), ruleset) for n in order]
+    known = (known_names(old), known_names(new))
+    diffs = [_server_diff(n, before.get(n), after.get(n), ruleset, known) for n in order]
     return [d for d in diffs if d is not None]
 
 
