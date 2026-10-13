@@ -150,12 +150,15 @@ class Session:
 
     def _page(self, result: dict[str, Any]) -> None:
         tools = result.get("tools")
-        if isinstance(tools, list):
-            room = MAX_LISTED - len(self._pages)
-            if len(tools) > room:
-                self._note(f"tools/list longer than {MAX_LISTED} tools: the rest is not "
-                           "inspected")
-            self._pages += tools[:max(room, 0)]
+        if not isinstance(tools, list):
+            self._pages = []
+            self._note("a tools/list answer has no `tools` array (non-standard shape): "
+                       "not compared")
+            return
+        room = MAX_LISTED - len(self._pages)
+        if len(tools) > room:
+            self._note(f"tools/list longer than {MAX_LISTED} tools: the rest is not inspected")
+        self._pages += tools[:max(room, 0)]
         if result.get("nextCursor"):
             return  # more pages to come
         listing, self._pages = self._pages, []

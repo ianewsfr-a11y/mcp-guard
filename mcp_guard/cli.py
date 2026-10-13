@@ -30,6 +30,7 @@ from .lock import (
 from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
 from .pipeline import AuditRun, Loader, run_audit
+from .redact import secret_arg, secret_args
 from .rules import DEFAULT_RULESET, load_ruleset
 from .runtime.proxy import run_proxy
 from .sarif import to_sarif
@@ -249,6 +250,7 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
         return
     snap = fingerprint(collect(data, source, results), pins=True)
     write_lock(snap, output)
+    _warn_secret_args(static)
     again = " --live" if live else ""
     target = (str(config_file) if config_file
               else " ".join(f'--server "{v}"' for v in servers))
@@ -256,6 +258,20 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
                  f"({snap.mode} mode) in {escape(str(output))}.\n"
                  f"Commit it, then check with: mcp-guard inspect "
                  f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+def _warn_secret_args(snap: MCPSnapshot) -> None:
+    """The pin keeps arguments as a salted HMAC whose salt is in the lock:
+    a guessable secret among them can be recovered by whoever reads it."""
+    for server in snap.servers:
+        if server.spec is None:
+            continue
+        args = [str(a) for a in server.spec.args]
+        if any(secret_arg(a, p) for a, p in zip(args, [None, *args])) or secret_args(args):
+            stderr.print(f"[yellow]warning: {escape(printable(server.name, 60))}: an argument "
+                         "looks secret. The lock masks it, but its HMAC salt is in the same "
+                         "file, so a guessable value can be recovered: pass it through an "
+                         "env variable instead.[/]")
 
 
 def _update_lock(current: MCPSnapshot, path: Path) -> None:

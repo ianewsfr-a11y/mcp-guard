@@ -76,16 +76,16 @@ def test_exit_code_and_stdin_closing_are_passed_on():
 @pytest.mark.integration
 def test_partial_client_lines_are_forwarded():
     command = [sys.executable, "-m", "mcp_guard", "proxy", "--", sys.executable, FAKE, "steady"]
-    proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE)
-    request = json.dumps(LIST).encode()
-    proc.stdin.write(request[:10])
-    proc.stdin.flush()
-    time.sleep(0.3)
-    proc.stdin.write(request[10:] + b"\n")
-    proc.stdin.close()
-    out = proc.stdout.read()
-    proc.wait(timeout=30)
+    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL) as proc:  # closes the pipes
+        request = json.dumps(LIST).encode()
+        proc.stdin.write(request[:10])
+        proc.stdin.flush()
+        time.sleep(0.3)
+        proc.stdin.write(request[10:] + b"\n")
+        proc.stdin.close()
+        out = proc.stdout.read()
+        proc.wait(timeout=30)
     assert json.loads(out.splitlines()[0])["result"]["tools"][0]["name"] == "read_notes"
 
 
@@ -661,7 +661,7 @@ def test_the_journal_stays_ascii_bounded_and_alive(tmp_path):
     seen, warn = _notes()
     path = tmp_path / "j.jsonl"
     recorder = Recorder.open(path, False, warn)
-    line = b'{"id": "\ud800", "method": "' + b"m" * 500 + b'\u009b"}'
+    line = rb'{"id": "\ud800", "method": "' + b"m" * 500 + rb'\u009b"}'
     recorder.record("server->client", line, json.loads(line))
     recorder.record("server->client", b"{}", {"method": "after", "id": 2})
     recorder.close()
@@ -740,3 +740,143 @@ def test_pin_program_is_the_command_as_written_and_missing_hashes_are_said(tmp_p
     assert portable(home) == "~"
     assert sha256_file(tmp_path) is None  # a directory
     assert sha256_file(tmp_path / "missing") is None
+
+
+# --- PR #20 review: answers without tools, server stderr, secrets in arguments ---------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("result", [{}, {"tools": None}, {"tools": "x"}, {"resultType": "complete"}])
+def test_a_tools_list_answer_without_a_tools_array_is_not_compared(result):
+    session, reports, seen = _session_with_reports()
+    for ident, answer in ((1, {"tools": [{"name": "a"}, {"name": "b"}]}), (2, result)):
+        session.client({"jsonrpc": "2.0", "id": ident, "method": "tools/list"})
+        session.server_message({"jsonrpc": "2.0", "id": ident, "result": answer})
+    assert session.listings == 1  # the malformed answer is not a list of zero tools
+    assert not any(r[2].category == "tool-removed" for r in reports)
+    assert any("no `tools` array" in s for s in seen)
+
+
+@pytest.mark.unit
+def test_server_stderr_lines_are_prefixed():
+    from mcp_guard.runtime.proxy import prefixed
+    assert prefixed(b"one\ntwo", True) == (b"server: one\nserver: two", False)
+    assert prefixed(b" more\r\nmcp-guard: fake\rx\n", False) == (
+        b" more\r\nserver: mcp-guard: fake\rserver: x\n", True)
+    assert prefixed(b"", True) == (b"", True)
+
+
+@pytest.mark.unit
+def test_reporter_relays_raw_bytes_with_or_without_a_buffer():
+    import io
+    text = io.StringIO()
+    Reporter(text).raw(b"server: caf\xc3\xa9\n")
+    assert text.getvalue() == "server: café\n"
+    binary = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+    Reporter(binary).raw(b"server: x\n")
+    assert binary.buffer.getvalue() == b"server: x\n"
+
+
+@pytest.mark.integration
+def test_the_server_stderr_is_relayed_with_a_prefix():
+    _, _, err = _proxy("steady", _lines(INIT))
+    lines = err.splitlines()
+    assert "server: fake server stderr" in lines
+    assert "fake server stderr" not in lines  # never unprefixed
+
+
+@pytest.mark.unit
+def test_secret_in_args_is_reported_by_inspect_and_by_lock(tmp_path):
+    from mcp_guard.redact import secret_args
+    config = tmp_path / "mcp.json"
+    config.write_text(json.dumps({"mcpServers": {"db": {"command": "pg-mcp", "args": [
+        "host=x password=hunter2", "--header", "Authorization: Bearer abc",
+        "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123", "img@sha256:" + "a1" * 32,
+        "@modelcontextprotocol/server-memory"]}}}), encoding="utf-8")
+    result = CliRunner().invoke(cli, ["inspect", str(config), "--json"])
+    found = [f for entry in json.loads(result.output) for f in entry["findings"]
+             if f["category"] == "secret-in-args"]
+    assert len(found) == 3 and all(f["risk"] == "MEDIUM" for f in found)
+    assert "hunter2" not in result.output and "abc\"" not in result.output
+    assert secret_args(["--api-key", "sk-live-1234567890abcdefghijklmn"]) == []  # hardcoded
+    locked = CliRunner().invoke(cli, ["lock", str(config), "-o", str(tmp_path / "l.lock")])
+    assert locked.exit_code == 0 and "an argument looks secret" in locked.output
+    assert "hunter2" not in (tmp_path / "l.lock").read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_stderr_relay_and_shutdown_edges(tmp_path, monkeypatch):
+    import io
+    import threading
+
+    from mcp_guard.runtime import proxy as proxy_module
+    gone = type("Gone", (), {"flush": lambda s: (_ for _ in ()).throw(OSError())})()
+    Reporter(gone).raw(b"x")  # must not raise
+    sink = io.StringIO()
+    reporter = Reporter(sink)
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"partial")
+    os.write(write_fd, b" line\nnext\n")
+    os.close(write_fd)
+    proxy_module.relay_stderr(read_fd, reporter)
+    os.close(read_fd)
+    assert sink.getvalue() == "server: partial line\nserver: next\n"
+    proxy_module.relay_stderr(read_fd, reporter)  # closed fd: OSError, ignored
+
+    monkeypatch.setattr(proxy_module.Recorder, "open", lambda *a: 1 / 0)
+    seen, note = _notes()
+    assert proxy_module._open_recorder(tmp_path / "j", False, note) is None
+    assert any("not recording" in s for s in seen)
+
+    stuck = threading.Event()
+    reader = threading.Thread(target=stuck.wait, daemon=True)
+    reader.start()
+    monkeypatch.setattr(threading.Thread, "join", lambda self, timeout=None: None)
+    child = type("Child", (), {"stdout": None, "stderr": None})()
+    proxy_module._finish(child, [reader])  # still alive: pipes left to the process exit
+    stuck.set()
+
+
+@pytest.mark.unit
+def test_an_interrupted_proxy_kills_the_server(monkeypatch):
+    from mcp_guard.runtime import proxy as proxy_module
+    killed = []
+
+    def interrupted(child):
+        killed.append(child)
+        raise KeyboardInterrupt
+
+    original_kill = subprocess.Popen.kill
+    monkeypatch.setattr(proxy_module, "_wait", interrupted)
+    monkeypatch.setattr(subprocess.Popen, "kill",
+                        lambda self: (killed.append("kill"), original_kill(self)))
+    in_r, in_w = os.pipe()
+    out_r, out_w = os.pipe()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            proxy_module.run_proxy(sys.executable, [FAKE, "steady"], stdin_fd=in_r,
+                                   stdout_fd=out_w)
+    finally:
+        for fd in (in_w, out_w, in_r, out_r):
+            os.close(fd)
+    assert "kill" in killed
+
+
+@pytest.mark.unit
+def test_pin_without_a_home_and_with_odd_paths(tmp_path, monkeypatch):
+    import mcp_guard.pin as pin_module
+
+    def no_home():
+        raise RuntimeError("no home")
+
+    monkeypatch.setattr(pin_module.Path, "home", staticmethod(no_home))
+    assert pin_module.portable("/x/y") == "/x/y"
+    assert pin_module.stored_arg("/x/y") == "/x/y"
+    monkeypatch.undo()
+    assert pin_module._script(["~no-such-user-xyz/s.js"]) is None
+    script = tmp_path / "s.js"
+    script.write_text("one", encoding="utf-8")
+    before = compute_pin(sys.executable, [str(script)], "ab" * 16)
+    script.write_text("two", encoding="utf-8")
+    (finding,), _ = compare_pins(before, compute_pin(sys.executable, [str(script)], "ab" * 16))
+    assert "script content changed" in finding.evidence

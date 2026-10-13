@@ -137,6 +137,7 @@ Exit codes: `0` audit done, `1` `--fail-on` threshold reached, `2` unreadable in
 | `privileged-access` | CRITICAL | root, sudo, admin, privileged, chmod... and Docker `--privileged`, `--cap-add`, `--pid=host`, `--network=host` |
 | `write-operation` | HIGH | write, delete, remove, create, add, update, save, edit, move, rename, patch, push, commit... |
 | `database-write` | HIGH | insert/update/delete/drop *next to* sql/db/table |
+| `secret-in-args` | MEDIUM | a launch argument that looks like a credential `hardcoded-secret` cannot name: `Authorization: Bearer x`, `password=` in a connection string, a long random token (not a `sha256:` digest). It shows in process lists, and the lock's HMAC of the arguments can be brute-forced |
 | `hardcoded-secret` | HIGH | literal values for `*_TOKEN`, `*_KEY`, `*_SECRET`, `*PASSWORD`, `Authorization` in `env` or `headers`; `--api-key=X`, `--api-key X` and `API_KEY=X` args; credentials in the server URL or in a `scheme://user:pw@host` arg. Values are never printed. References such as `${env:X}`, `${input:x}`, `${file:/path}`, `${{ secrets.X }}`, `$VAR` and `%VAR%` are ignored |
 | `broad-filesystem-scope` | HIGH | a server arg that is exactly `/`, `~`, `C:\`, `/home`, `/Users`, `/etc`, `/root`, `$HOME` or `%USERPROFILE%` |
 | `database` | MEDIUM | sql, query, database, postgres, redis... |
@@ -366,6 +367,8 @@ Commit the lock next to the config so changes show up in review. Secrets never r
 - the SHA-256 of the executable and of the script it runs;
 - the date.
 
+The arguments' HMAC is keyed by the lock's `salt`, which is stored in the lock itself. The HMAC stops precomputed tables, not guessing: anyone who reads the lock can recover a guessable value. Keep secrets in env variables, never in arguments. `secret-in-args` (MEDIUM) flags arguments that look like one: `Bearer x`, `password=` in a connection string, or a long random token.
+
 With `--live`, it also records the server's `identity`: its name and version, and a hash of its capabilities. `inspect --lock` compares the identity (`server-changed` MEDIUM). `proxy` compares both, see below.
 
 ### `proxy`: watch a server while you use it
@@ -397,13 +400,12 @@ mcp-guard: [HIGH] tool-changed (during this session) read_notes: annotation read
 
 The proxy finds its lock entry from the command it runs. When two entries run the same command, it asks for `--server-name`. When none matches, or there is no lock, it says so and compares within the session only.
 
-**Fail-open.** A missing or corrupt lock, a journal it cannot write, a line that is not JSON, or an internal error never stops a message. The proxy reports the problem and goes on. It has no blocking mode. The server's stderr, its exit code, SIGINT/SIGTERM and the end of stdin all pass through.
+**Fail-open.** A missing or corrupt lock, a journal it cannot write, a line that is not JSON, or an internal error never stops a message. The proxy reports the problem and goes on. It has no blocking mode. The server's exit code, SIGINT/SIGTERM and the end of stdin pass through. The server's stderr is relayed with each line prefixed `server: `, so it cannot pass for an `mcp-guard:` line.
 
 **Journal.** `--record session.jsonl` appends one line per message: time, direction, method, id, size and SHA-256. The file is ASCII JSON, readable by its owner only. Recording never slows the traffic: when its queue is full, entries are dropped and counted. `--record-bodies` also keeps the full messages, which can contain secrets, and the file has no size limit.
 
 **Limits:**
 - Inspection is bounded: 1,000 lines or 64 MB waiting, 2,000 tools per list, 16 MB per line. Beyond these limits a hostile server's messages are still forwarded but not inspected, and the proxy says so.
-- The server's stderr is passed through as is, so a hostile server can write lines that look like `mcp-guard:` lines. Trust a warning, not the absence of one.
 - When the server is a launcher (`npx`, a `.cmd` file), stopping the proxy stops the launcher. Its children may stay behind.
 
 The proxy reads the 2026-07-28 MCP revision too (`server/discover`, no `initialize`, `_meta` serverInfo, `subscriptionId`). Only stdio is supported.

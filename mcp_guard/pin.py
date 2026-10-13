@@ -18,6 +18,12 @@ removed) and compared through a salted HMAC of their exact value
 (`args_hmac`, keyed with the lock's salt): a change is detected without the
 lock holding the value.
 
+The salt sits in the lock itself (`salt`, 16 random bytes): the HMAC only
+defeats precomputed tables. Anyone who reads the lock can test guesses, so
+a low-entropy secret in the arguments can be recovered from it.
+`secret_args` names those arguments (`secret-in-args`): move them to the
+environment, where the lock keeps only their names.
+
 The home directory is stored as `~`, so the lock does not publish a user
 name. Pinning the package an `npx` or `uvx` launcher downloads (its npm or
 PyPI digest) is out of scope: see ROADMAP.md.
@@ -39,15 +45,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from .live.launch import resolve_executable
 from .live.protocol import LiveError
 from .models import Finding, Risk
-from .redact import REDACTED, redact_args
+from .redact import REDACTED, SECRET_WORDS, TOKEN, URL_ORIGIN, redact_args
 
 CATEGORY = "command-pin-changed"
 MAX_HASHED_BYTES = 1024 * 1024 * 1024
 _SHA256 = r"^[0-9a-f]{64}$"
 _LAUNCHER_SUFFIX = re.compile(r"\.(exe|cmd|bat|com|ps1)$", re.IGNORECASE)
-_URL = re.compile(r"(\w+://[^/\s?#]*)\S*")
-_TOKEN = re.compile(r"(?=[\w+=-]*\d)(?=[\w+=-]*[A-Za-z])[\w+=-]{24,}")
-_SECRET_WORDS = re.compile(r"bearer\s|password=|passwd=|pwd=|secret=|token=", re.IGNORECASE)
 
 
 class Pin(BaseModel):
@@ -105,12 +108,12 @@ def stored_arg(arg: str) -> str:
     """An argument as the committed lock shows it: stricter than display
     redaction (only scheme and host of a URL, no token-like word, `~` for
     the home directory), since `args_hmac` detects any change anyway."""
-    if _SECRET_WORDS.search(arg):
+    if SECRET_WORDS.search(arg):
         return REDACTED
     home = _home()
     if home and home in arg:
         arg = arg.replace(home, "~")
-    return _TOKEN.sub(REDACTED, _URL.sub(_stored_url, arg))
+    return TOKEN.sub(REDACTED, URL_ORIGIN.sub(_stored_url, arg))
 
 
 def stored_args(args: list[str]) -> tuple[str, ...]:

@@ -35,6 +35,7 @@ from .recorder import Recorder
 
 CHUNK = 64 * 1024
 PREFIX = "mcp-guard: "
+SERVER_PREFIX = b"server: "  # on each line of the server's stderr
 _MAX_SEEN = 1000  # lines remembered to write each once
 _WHERE = {"lock": "since the lock", "session": "during this session", "analysis": ""}
 
@@ -54,6 +55,22 @@ class Reporter:
         context = f" ({_WHERE[where]})" if _WHERE.get(where) else ""
         self._write(f"{PREFIX}[{finding.risk.name}] {finding.category}{context} "
                     f"{printable(label, 120)}: {printable(finding.evidence, 600)}")
+
+    def raw(self, data: bytes) -> None:
+        """Bytes from the server's stderr, written whole between our lines."""
+        with self._lock:
+            stream = self._stream or sys.stderr
+            try:
+                stream.flush()
+                buffer = getattr(stream, "buffer", None)
+                if buffer is not None:
+                    buffer.write(data)
+                    buffer.flush()
+                else:
+                    stream.write(data.decode("utf-8", errors="replace"))
+                    stream.flush()
+            except (OSError, ValueError):
+                pass  # stderr gone: nothing to relay to
 
     def _write(self, line: str) -> None:
         with self._lock:
@@ -111,6 +128,30 @@ def pump(source: int, target: int, direction: str, inspector: Inspector,
         on_end()
 
 
+def prefixed(chunk: bytes, at_start: bool) -> tuple[bytes, bool]:
+    """`chunk` with `server: ` at the start of each line (also after a bare
+    carriage return, which a terminal uses to overwrite a line), and whether
+    the next chunk starts a line. Bytes are otherwise unchanged."""
+    out = bytearray()
+    for piece in chunk.splitlines(keepends=True):
+        if at_start:
+            out += SERVER_PREFIX
+        out += piece
+        at_start = piece.endswith((b"\n", b"\r"))
+    return bytes(out), at_start
+
+
+def relay_stderr(source: int, reporter: Reporter) -> None:
+    """The server's stderr, prefixed so that it cannot pass for mcp-guard's."""
+    at_start = True
+    try:
+        while chunk := os.read(source, CHUNK):
+            data, at_start = prefixed(chunk, at_start)
+            reporter.raw(data)
+    except OSError:
+        pass  # the server is gone
+
+
 def _closer(stream: IO[bytes]) -> Callable[[], None]:
     """Closing the server's stdin tells it the client is gone."""
     def close() -> None:
@@ -155,7 +196,8 @@ def _start(command: str, args: list[str], note: Callable[[str], None],
     try:
         executable = resolve_executable(command)
         return subprocess.Popen([executable, *args], stdin=subprocess.PIPE,  # nosec B603
-                                stdout=subprocess.PIPE, stderr=None, bufsize=0)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                bufsize=0)
     except (LiveError, OSError, ValueError) as exc:
         note(f"cannot start the server: {printable(str(exc), 300)}")
         return None
@@ -199,10 +241,11 @@ def _open_recorder(path: Path | None, bodies: bool, note: Callable[[str], None],
         return None
 
 
-def _relay(child: subprocess.Popen[bytes], inspector: Inspector, stdin_fd: int,
-           stdout_fd: int) -> threading.Thread:
-    """Start both pumps; the server -> client one is returned, to be joined."""
+def _relay(child: subprocess.Popen[bytes], inspector: Inspector, reporter: Reporter,
+           stdin_fd: int, stdout_fd: int) -> list[threading.Thread]:
+    """Start the pumps; the server -> client ones are returned, to be joined."""
     assert child.stdin is not None and child.stdout is not None  # nosec B101
+    assert child.stderr is not None  # nosec B101
     for fd in (stdin_fd, stdout_fd):
         _binary(fd)
     closer = _closer(child.stdin)
@@ -211,7 +254,21 @@ def _relay(child: subprocess.Popen[bytes], inspector: Inspector, stdin_fd: int,
     out = threading.Thread(target=pump, daemon=True, args=(
         child.stdout.fileno(), stdout_fd, SERVER, inspector, inspector.notify, closer))
     out.start()  # the client stopped reading: the server's stdin is closed too
-    return out
+    err = threading.Thread(target=relay_stderr, daemon=True,
+                           args=(child.stderr.fileno(), reporter))
+    err.start()
+    return [out, err]
+
+
+def _finish(child: subprocess.Popen[bytes], readers: list[threading.Thread]) -> None:
+    """Flush what the server wrote before exiting, then close its pipes."""
+    for reader in readers:
+        reader.join(timeout=5)
+    if any(reader.is_alive() for reader in readers):
+        return  # a grandchild keeps a pipe open: the process exit closes it
+    for stream in (child.stdout, child.stderr):
+        if stream is not None:
+            stream.close()
 
 
 def _stop(inspector: Inspector, recorder: Recorder | None, note: Callable[[str], None]) -> None:
@@ -235,13 +292,19 @@ def run_proxy(command: str, args: list[str], lock_path: Path | None = None,
         _stop(inspector, recorder, note)
         return 127
     previous: dict[int, Any] = {}
+    readers: list[threading.Thread] = []
     try:
-        out = _relay(child, inspector, stdin_fd, stdout_fd)
+        readers = _relay(child, inspector, reporter, stdin_fd, stdout_fd)
         previous = _forward_signals(child)
         code = _wait(child)
-        out.join(timeout=5)  # flush what the server wrote before exiting
+        _finish(child, readers)
     except BaseException:
         child.kill()  # never leave the server behind
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        _finish(child, readers)
         raise
     finally:
         _restore_signals(previous)

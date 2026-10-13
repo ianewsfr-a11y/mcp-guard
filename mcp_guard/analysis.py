@@ -20,6 +20,7 @@ from .redact import (
     redact_value,
     safe_url,
     secret_arg,
+    secret_args,
     strip_url_credentials,
 )
 from .rules import DEFAULT_RULESET, RuleSet
@@ -87,6 +88,14 @@ def _secret_findings(server: ServerSpec) -> list[Finding]:
     return findings
 
 
+def _secret_in_args(server: ServerSpec) -> list[Finding]:
+    """Secrets `hardcoded-secret` cannot name, but that the command pin masks.
+    Also a warning about the lock: its HMAC is keyed with a salt stored in
+    the same file, so a guessable value can be recovered from it."""
+    return [Finding(category="secret-in-args", risk=Risk.MEDIUM, evidence=evidence)
+            for evidence in secret_args([str(a) for a in server.args])]
+
+
 def _transport_findings(server: ServerSpec) -> list[Finding]:
     findings = []
     parts = urlsplit(server.url)
@@ -126,6 +135,7 @@ def analyze_server(name: str, server: ServerSpec,
     findings = (
         *ruleset.match(*_launch_terms(server)),
         *_secret_findings(server),
+        *_secret_in_args(server),
         *_transport_findings(server),
     )
     return AuditEntry(kind="server", name=name, findings=ruleset.keep(tuple(findings)))

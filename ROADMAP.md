@@ -14,7 +14,6 @@ v0.8 is fail-open by design: the proxy prevents nothing, it makes changes visibl
 
 - **Hash every file argument.** The pin hashes the first argument that is an existing file. With `node --require ./hook.js server.js`, that is the hook, not the server.
 - **Stop the whole process tree.** Use a process group on POSIX and a job object on Windows, with a grace period before a kill, so that the children of `npx` stop with the proxy.
-- **Tag the server's stderr.** Prefix each server stderr line, so that a hostile server cannot imitate `mcp-guard:` lines. Some clients parse the raw stderr, so this would be an option.
 - **Cap the size of `--record-bodies` journals.**
 
 ## Proxy over Streamable HTTP

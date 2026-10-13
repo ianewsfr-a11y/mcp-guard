@@ -2,8 +2,11 @@
 
 ## Unreleased (v0.8.0)
 
+### Breaking
+- **A lock written by v0.8 cannot be read by v0.7.** Each server entry gains two fields: `pin` (command pinning, written by every `lock`) and `identity` (server name, version, protocol and a hash of its capabilities, written by `lock --live`). v0.7 validates locks strictly and rejects unknown fields. Upgrade every machine and CI job that reads the lock before you rewrite it with v0.8. A v0.7 lock is still read by v0.8.
+- **The server's stderr is prefixed.** Through `proxy`, each line the server writes on stderr starts with `server: `, so it cannot pass for an `mcp-guard:` line. A client that parses the server's raw stderr will see the prefix.
+
 ### Upgrading from v0.7
-- **Locks gain two optional fields per server**: `pin` (command pinning) and `identity` (server name, version, protocol and a hash of its capabilities). mcp-guard v0.7 rejects a lock that contains them. Upgrade every machine and CI job that reads the lock before you rewrite it.
 - `lock` still writes format 2. Run `mcp-guard lock CONFIG --live --update` to add the pins and identities to an existing lock without approving anything else. It keeps the salt, and it refuses if a tool changed.
 
 ### Added
@@ -12,7 +15,8 @@
   - **Inspection on a copy, in its own thread:** `tools/list` requests (by id, pages by cursor) and their answers, `notifications/tools/list_changed`, `initialize`, `server/discover`, and the `_meta` serverInfo of any result.
     - Each complete tool list is compared with the lock and with the previous list of the session: description, schema, and each security hint flipped, as in `inspect --lock`.
     - Each list is also checked for poisoning and annotation contradictions.
-  - **Reports:** on stderr, prefixed `mcp-guard:`, each line once. The server's stderr is passed through.
+  - **Reports:** on stderr, prefixed `mcp-guard:`, each line once. The server's stderr is relayed with each line prefixed `server: ` (also after a bare carriage return).
+  - **Non-standard answers:** a `tools/list` answer without a `tools` array is noted and not compared, rather than read as a list of zero tools.
   - **Process:** SIGINT and SIGTERM are forwarded, the end of stdin is forwarded, and the proxy exits with the server's exit code (127 if the server cannot start).
   - **Hostile servers:**
     - Only a message without `method` that carries a `result` or an `error` counts as an answer, so a server request that reuses the id of a pending `tools/list` cannot hide that list.
@@ -37,6 +41,7 @@
   - the date.
 
   The proxy recomputes it in the background, after the server has started. A different hash, different arguments or another program is `command-pin-changed` HIGH. The same program and hashes at another path (`npx` lives somewhere else on every machine) is only a note. `lock --update` replaces the pin. A hash recorded in the lock that cannot be computed on this machine is said in a note, not skipped silently.
+- **`secret-in-args`** (MEDIUM, in every audit): a launch argument that looks like a credential but that `hardcoded-secret` cannot name, such as `Authorization: Bearer x`, `password=` in a connection string, or a long random token. Pinned digests (`sha256:...`) are not reported. `lock` also warns about it. The pin compares arguments through an HMAC keyed by the lock's `salt`, and that salt sits in the lock itself. The HMAC therefore stops precomputed tables, but anyone who reads the lock can test guesses, so a guessable secret can be recovered from it. Pass secrets through env variables, whose values the lock never holds.
 - **Server identity**: `serverInfo` and capabilities are recorded by `lock --live` and compared by `inspect --lock` and by the proxy. A change is `server-changed` MEDIUM: an upgrade is legitimate, but a rug pull would happen at exactly that moment. The negotiated protocol version is recorded but not compared, because it depends on the client.
 
 ### MCP revision 2026-07-28
