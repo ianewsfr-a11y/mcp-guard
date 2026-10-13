@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0
 
 ### Added
 - **Versioned snapshot** (`mcp_guard/snapshot.py`): `MCPSnapshot` is the captured state of an MCP setup. It holds servers and tools; each tool keeps its raw description, input schema, annotations, other metadata and provenance. With `--live` it also holds the resources and prompts each server declares.
