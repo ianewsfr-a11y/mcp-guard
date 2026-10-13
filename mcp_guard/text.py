@@ -17,3 +17,11 @@ def printable(text: str, limit: int | None = None) -> str:
     if limit is not None and len(cleaned) > limit:
         return cleaned[: max(limit - 1, 0)] + "…"
     return cleaned
+
+
+def escaped(text: str) -> str:
+    r"""ASCII-only form where every non-ASCII or control character is written
+    as a Python escape (`\u200b`, `\u0435`), so two strings that look
+    the same on screen are told apart."""
+    return "".join(ch if " " <= ch <= "~" else ch.encode("unicode_escape").decode("ascii")
+                   for ch in str(text))

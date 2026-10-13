@@ -35,8 +35,8 @@ def audit_snapshot(snap: MCPSnapshot, ruleset: RuleSet, lock_path: Path | None =
         return entries, None
     locked = read_lock(lock_path)
     unreachable = {s.name for s in snap.servers if s.live_status == "failed"}
-    return compare(locked, fingerprint(snap, salt=locked.salt), entries, ruleset,
-                   unreachable), locked
+    current = fingerprint(snap, salt=locked.salt, version=locked.version)
+    return compare(locked, current, entries, ruleset, unreachable, snap), locked
 
 
 def run_audit(data: Any, source: str, ruleset: RuleSet,
