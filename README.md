@@ -196,6 +196,36 @@ ignore:
 
 The SARIF 2.1.0 output carries GitHub's `security-severity`, a line number for each finding and stable fingerprints, so alerts show up in the repository's **Security** tab and on pull requests. A ready-to-copy workflow lives in [`examples/github-code-scanning.yml`](https://github.com/ianewsfr-a11y/mcp-guard/blob/main/examples/github-code-scanning.yml).
 
+### `ui`: explore an audit interactively
+
+```bash
+mcp-guard ui ~/.cursor/mcp.json --live --lock mcp-guard.lock
+mcp-guard ui --live --server "npx -y @modelcontextprotocol/server-memory"
+```
+
+![mcp-guard ui](https://raw.githubusercontent.com/ianewsfr-a11y/mcp-guard/main/docs/images/ui.png)
+
+A terminal UI (built with [Textual](https://textual.textualize.io/)) on the same audit as `inspect`, with the same options (`--server`, `--live`, `--lock`, `--rules`).
+
+**Left pane:** servers and their tools, riskiest first, colored by risk. CRITICAL is red, HIGH magenta, MEDIUM yellow, LOW green.
+
+**Right pane**, for the selected item:
+- its risk and every finding;
+- the lock status, if a lock is in use;
+- for a tool, its description and its input schema as highlighted JSON;
+- for a server, its launch spec with secrets redacted.
+
+| Key | Action |
+|---|---|
+| Up / Down | move in the tree |
+| Tab | switch between the panes (the right one scrolls) |
+| `r` | refresh: re-read the config, and re-contact servers with `--live` |
+| `l` | lock report: every change since the lock file |
+| `t` | light / dark theme (risk colors adapt) |
+| `q` | quit |
+
+Refresh runs in the background. With `--live` it only restarts the servers you confirmed at launch, with exactly the same spec. A server added or changed in the config since then is reported, not run, until you restart `mcp-guard ui`. All text from servers is neutralized before display (control, bidi and zero-width characters).
+
 ### `lock <config_file>`: detect rug pulls
 
 A server you approved can later change what its tools say or do: rewrite a description, add a parameter, flip an annotation, add a tool. MCP clients do not warn you. `lock` records SHA-256 fingerprints in `mcp-guard.lock`. `inspect --lock` then reports what changed:

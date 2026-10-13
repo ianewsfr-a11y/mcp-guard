@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.markup import escape
 
 from . import __version__, render
-from .analysis import audit
 from .formats import Discovered, discover, load_config
 from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
 from .inline import SOURCE_LABEL, servers_from_cli
@@ -22,14 +21,15 @@ from .live import (
     fetch_all,
     launch_plan,
     launch_warnings,
-    merge_live_results,
 )
-from .lock import DEFAULT_LOCK, compare, read_lock, snapshot, write_lock
-from .models import AuditEntry, ConfigFormatError, Risk
+from .lock import DEFAULT_LOCK, snapshot, write_lock
+from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
-from .rules import DEFAULT_RULESET, RuleSet, load_ruleset
+from .pipeline import AuditRun, Loader, run_audit
+from .rules import DEFAULT_RULESET, load_ruleset
 from .sarif import to_sarif
 from .text import printable
+from .ui import run_ui
 
 _FAIL_CHOICES = click.Choice(["none", "low", "medium", "high", "critical"],
                              case_sensitive=False)
@@ -83,17 +83,6 @@ def _live_results(servers: dict, timeout: float, assume_yes: bool) -> LiveResult
         return fetch_all(plan, timeout)
 
 
-def _check_lock(lock_file: Path, found: Discovered, results: LiveResults | None,
-                entries: tuple[AuditEntry, ...], ruleset: RuleSet) -> tuple[AuditEntry, ...]:
-    unreachable = {n for n, r in (results or {}).items() if isinstance(r, LiveError)}
-    try:
-        locked = read_lock(lock_file)
-        return compare(locked, snapshot(found, results, salt=locked.salt), entries, ruleset,
-                       unreachable)
-    except ConfigFormatError as exc:
-        raise InputError(str(exc)) from exc
-
-
 def _load_input(config_file: Path | None, servers: tuple[str, ...]) -> tuple[Any, str]:
     """The config to audit and how to name it: a file, or --server values."""
     if bool(config_file) == bool(servers):
@@ -102,6 +91,45 @@ def _load_input(config_file: Path | None, servers: tuple[str, ...]) -> tuple[Any
         if config_file:
             return load_config(config_file), config_file.name
         return servers_from_cli(servers), SOURCE_LABEL
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+
+
+def _reload_live(found: Discovered, confirmed: dict[str, ServerSpec],
+                 timeout: float) -> LiveResults:
+    """Live results for a refresh, without a new prompt: only servers whose
+    spec is exactly the one the user confirmed are started again."""
+    results: LiveResults = {}
+    plan = []
+    for name, spec in launch_plan(found.servers):
+        if confirmed.get(name) == spec:
+            plan.append((name, spec))
+        else:
+            results[name] = LiveError("added or changed since you confirmed --live; "
+                                      "restart to approve it")
+    return {**results, **fetch_all(plan, timeout)}
+
+
+def _collect(config_file: Path | None, servers: tuple[str, ...], rules_file: Path | None,
+             live: bool, assume_yes: bool, timeout: float,
+             lock_file: Path | None) -> tuple[AuditRun, Loader]:
+    """The first audit run, and a loader that repeats it (for `ui` refresh)."""
+    data, source = _load_input(config_file, servers)
+    try:
+        ruleset = load_ruleset(rules_file) if rules_file else DEFAULT_RULESET
+        found = discover(data)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+    results = _live_results(found.servers, timeout, assume_yes) if live else None
+    confirmed = dict(launch_plan(found.servers)) if live else {}
+
+    def reload() -> AuditRun:
+        fresh = load_config(config_file) if config_file else data
+        fresh_live = _reload_live(discover(fresh), confirmed, timeout) if live else None
+        return run_audit(fresh, source, ruleset, fresh_live, lock_file)
+
+    try:
+        return run_audit(data, source, ruleset, results, lock_file), reload
     except ConfigFormatError as exc:
         raise InputError(str(exc)) from exc
 
@@ -147,22 +175,12 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
     """Audit an MCP client config or a tools list (JSON, JSONC or YAML), or
     servers given with --server."""
     fmt = "json" if as_json else fmt.lower()
-    data, source = _load_input(config_file, servers)
-    try:
-        ruleset = load_ruleset(rules_file) if rules_file else DEFAULT_RULESET
-        found = discover(data)
-        entries = audit(data, ruleset)
-    except ConfigFormatError as exc:
-        raise InputError(str(exc)) from exc
-
-    results = _live_results(found.servers, timeout, assume_yes) if live else None
-    if results:
-        entries = merge_live_results(entries, results, ruleset)
-    if lock_file:
-        entries = _check_lock(lock_file, found, results, entries, ruleset)
+    run, _ = _collect(config_file, servers, rules_file, live, assume_yes, timeout, lock_file)
+    entries, ruleset = run.entries, run.ruleset
 
     if fmt == "table":
-        render.render_table(entries, source, found.format if config_file else "--server")
+        render.render_table(entries, run.source,
+                            run.found.format if config_file else "--server")
     elif fmt == "json":
         _emit(render.entries_to_json(entries), output)
     else:
@@ -212,6 +230,36 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
                  f"({snap.mode} mode) in {escape(str(output))}.\n"
                  f"Commit it, then check with: mcp-guard inspect "
                  f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+@cli.command()
+@click.argument("config_file", required=False,
+                type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--server", "servers", multiple=True, metavar="COMMAND_OR_URL",
+              help="A server given inline instead of CONFIG_FILE. Repeatable.")
+@click.option("--rules", "rules_file", type=click.Path(exists=True, dir_okay=False,
+                                                       path_type=Path),
+              help="Custom rules file (YAML or JSON).")
+@click.option("--live", is_flag=True,
+              help="Start/contact each server and explore its real tools.")
+@click.option("--yes", "assume_yes", is_flag=True,
+              help="Do not ask for confirmation before --live.")
+@click.option("--timeout", type=click.FloatRange(min=1), default=20, show_default=True,
+              help="Seconds to wait for each server in --live mode.")
+@click.option("--lock", "lock_file", type=click.Path(exists=True, dir_okay=False,
+                                                     path_type=Path),
+              help="Show changes since this lock file (rug-pull check).")
+def ui(config_file: Path | None, servers: tuple[str, ...], rules_file: Path | None,
+       live: bool, assume_yes: bool, timeout: float, lock_file: Path | None) -> None:
+    """Explore an audit interactively: servers and tools on the left, details
+    (findings, input schema, lock status) on the right.
+
+    Keys: arrows to move, Tab to switch pane, R refresh, L lock report,
+    T light/dark, Q quit.
+    """
+    run, reload = _collect(config_file, servers, rules_file, live, assume_yes, timeout,
+                           lock_file)
+    run_ui(run, reload)
 
 
 def _confirm_run(target: Path, executable: str, args: list[str], count: int,
