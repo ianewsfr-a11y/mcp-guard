@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0
 
 ### Added
 - **`mcp-guard ui`**: interactive terminal UI (Textual) on the same audit as `inspect` (`--server`, `--live`, `--lock`, `--rules`).
