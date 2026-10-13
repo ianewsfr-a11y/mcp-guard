@@ -64,6 +64,7 @@ class Capture(NamedTuple):
     prompts: tuple[Any, ...] = ()
     warnings: tuple[str, ...] = ()
     instructions: str | None = None  # sent by the server at initialization
+    identity: dict[str, Any] | None = None  # the initialize result, for serverInfo
 
 
 def _initialize(transport: Transport) -> dict[str, Any]:
@@ -141,4 +142,6 @@ def capture(transport: Transport) -> Capture:
     return Capture(tuple(tools), tuple(lists["resources"]), tuple(lists["prompts"]),
                    tuple(warnings),
                    instructions[:MAX_INSTRUCTIONS]
-                   if isinstance(instructions, str) and instructions else None)
+                   if isinstance(instructions, str) and instructions else None,
+                   {k: init[k] for k in ("serverInfo", "capabilities", "protocolVersion")
+                    if k in init} or None)

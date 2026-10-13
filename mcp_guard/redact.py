@@ -74,6 +74,35 @@ def secret_arg(arg: str, previous: str | None) -> tuple[str, str] | None:
     return None
 
 
+# Shapes of a secret inside an argument that `secret_arg` cannot name: the
+# command pin masks them, `secret-in-args` reports them.
+URL_ORIGIN = re.compile(r"(\w+://[^/\s?#]*)\S*")  # group 1: scheme and host
+TOKEN = re.compile(r"(?=[\w+=-]*\d)(?=[\w+=-]*[A-Za-z])[\w+=-]{24,}")
+SECRET_WORDS = re.compile(r"bearer\s|password=|passwd=|pwd=|secret=|token=", re.IGNORECASE)
+_DIGEST = re.compile(r"sha(1|224|256|384|512)[:=-]$", re.IGNORECASE)
+
+
+def _token(arg: str) -> bool:
+    """A long random-looking word outside URLs, not a pinned digest."""
+    text = URL_ORIGIN.sub(" ", arg)
+    return any(not _DIGEST.search(text[:m.start()]) for m in TOKEN.finditer(text))
+
+
+def secret_args(args: list[str]) -> list[str]:
+    """Evidence for the arguments that look secret but that `hardcoded-secret`
+    does not report (it covers `--api-key X`, `KEY=X` and URL passwords):
+    credential words (`Bearer x`, `password=`) and token-like words."""
+    found, previous = [], None
+    for index, arg in enumerate(args):
+        if secret_arg(arg, previous) is None:
+            reason = ("credential word" if SECRET_WORDS.search(arg)
+                      else "token-like word" if _token(arg) else None)
+            if reason:
+                found.append(f"arg {index}: {reason} (<redacted, {len(arg)} chars>)")
+        previous = arg
+    return found
+
+
 def redact_args(args: list[str]) -> list[str]:
     """Launch arguments with every literal secret replaced, for display."""
     redacted, previous = [], None

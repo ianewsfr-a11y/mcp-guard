@@ -42,7 +42,9 @@ from .annotations import CATEGORY as CONTRADICTION
 from .annotations import NON_BOOLEAN, SECURITY_HINTS, security_hints
 from .collector import Outcome, from_discovered
 from .formats import Discovered
+from .identity import ServerIdentity, identity_findings
 from .models import AuditEntry, ConfigFormatError, Finding, Risk, ServerSpec
+from .pin import Pin, compute_pin
 from .poisoning import look_alikes, normalize
 from .redact import is_secret_key, redact_args, safe_url, strip_url_credentials
 from .rules import RuleSet
@@ -97,6 +99,8 @@ class ServerPrint(BaseModel):
 
     launch: str
     settings: str
+    identity: ServerIdentity | None = None  # live locks: serverInfo, capabilities
+    pin: Pin | None = None  # stdio servers: what exactly runs (`lock` computes it)
 
 
 class LockFile(BaseModel):
@@ -145,10 +149,13 @@ def server_print(server: ServerSpec, salt: str) -> ServerPrint:
     )
 
 
+# Cache hints (MCP 2026-07-28) change with no change of meaning: never hashed.
+_UNHASHED = frozenset({"name", "description", "inputSchema", "ttlMs", "cacheScope"})
+
+
 def tool_print(tool: ToolSnapshot, server: str | None = None, occurrence: int = 0,
                version: int = LOCK_VERSION) -> ToolPrint:
-    others = {k: v for k, v in tool.to_mcp().items()
-              if k not in ("name", "description", "inputSchema")}
+    others = {k: v for k, v in tool.to_mcp().items() if k not in _UNHASHED}
     base = ToolPrint(server=server, name=tool.name, occurrence=occurrence,
                      description=_sha256(tool.description),
                      input_schema=_sha256(tool.input_schema), metadata=_sha256(others),
@@ -177,15 +184,19 @@ def _tool_prints(tools: tuple[ToolSnapshot, ...], server: str | None,
 
 
 def fingerprint(snap: MCPSnapshot, salt: str | None = None,
-                version: int = LOCK_VERSION) -> LockFile:
+                version: int = LOCK_VERSION, pins: bool = False) -> LockFile:
     """Fingerprints of a snapshot. Pass the locked `salt` (and `version`) when
-    the result is meant to be compared with a lock."""
+    the result is meant to be compared with a lock. `pins` also pins the
+    command of each stdio server (what `mcp-guard lock` writes)."""
     lock = LockFile(version=version, mode=snap.mode,
                     created=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     salt=salt or secrets.token_hex(16))
     for server in snap.servers:
         if server.spec is not None:
-            lock.servers[server.name] = server_print(server.spec, lock.salt)
+            pin = (compute_pin(server.spec.command, [str(a) for a in server.spec.args], lock.salt)
+                   if pins and server.spec.command else None)
+            lock.servers[server.name] = server_print(server.spec, lock.salt).model_copy(
+                update={"identity": server.identity, "pin": pin})
     lock.tools += _tool_prints(snap.tools, None, version)
     for server in snap.servers:
         if server.live_status == "captured":
@@ -210,7 +221,9 @@ def write_lock(lock: LockFile, path: Path) -> None:
         "servers": dict(sorted(lock.servers.items())),
         "tools": sorted(lock.tools, key=lambda t: (t.server is not None, t.server or "",
                                                    t.name, t.occurrence))})
-    path.write_text(ordered.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    # absent optional fields are left out, as in v0.7 files
+    path.write_text(ordered.model_dump_json(indent=2, exclude_none=True) + "\n",
+                    encoding="utf-8")
 
 
 def read_lock(path: Path) -> LockFile:
@@ -339,6 +352,9 @@ def _server_changes(locked: LockFile, current: LockFile, changes: Changes) -> No
             _add(changes, ("server", name), Finding(
                 category="server-changed", risk=Risk.HIGH,
                 evidence=" and ".join(parts) + " changed"))
+        if old.identity is not None and new.identity is not None:
+            for finding in identity_findings(old.identity, new.identity, "since the lock"):
+                _add(changes, ("server", name), finding)
 
 
 def _tool_changes(locked: LockFile, current: LockFile, unreachable: set[str],
@@ -415,5 +431,32 @@ def changes_since(locked: LockFile, snap: MCPSnapshot, ruleset: RuleSet,
 
 
 def migrated(locked: LockFile, snap: MCPSnapshot) -> LockFile:
-    """The same setup, fingerprinted in the current format, keeping the salt."""
-    return fingerprint(snap, salt=locked.salt)
+    """The same setup, fingerprinted in the current format, keeping the salt;
+    command pins are recomputed (`lock --update` replaces them)."""
+    return fingerprint(snap, salt=locked.salt, pins=True)
+
+
+def tool_prints(tools: tuple[ToolSnapshot, ...], server: str | None,
+                version: int = LOCK_VERSION) -> list[ToolPrint]:
+    """Fingerprints of one server's tools (the proxy compares them live)."""
+    return _tool_prints(tools, server, version)
+
+
+def diff_tools(old: list[ToolPrint], new: list[ToolPrint],
+               texts: dict[tuple[str | None, str, int], str] | None = None,
+               ) -> list[tuple[str, Finding]]:
+    """(label, finding) for every tool added, changed or removed between two
+    sets of fingerprints, with the same severities as `inspect --lock`."""
+    before = {t.key: t for t in old}
+    after = {t.key: t for t in new}
+    found: list[tuple[str, Finding]] = []
+    for key in sorted(after.keys() - before.keys(), key=str):
+        found.append((after[key].label, Finding(category="tool-added", risk=Risk.MEDIUM,
+                                                evidence="not in the reference list")))
+    for key in sorted(before.keys() & after.keys(), key=str):
+        found += [(after[key].label, change)
+                  for change in _tool_change(before[key], after[key], (texts or {}).get(key))]
+    for key in sorted(before.keys() - after.keys(), key=str):
+        found.append((before[key].label, Finding(category="tool-removed", risk=Risk.LOW,
+                                                 evidence="no longer listed")))
+    return found

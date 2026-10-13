@@ -137,6 +137,7 @@ Exit codes: `0` audit done, `1` `--fail-on` threshold reached, `2` unreadable in
 | `privileged-access` | CRITICAL | root, sudo, admin, privileged, chmod... and Docker `--privileged`, `--cap-add`, `--pid=host`, `--network=host` |
 | `write-operation` | HIGH | write, delete, remove, create, add, update, save, edit, move, rename, patch, push, commit... |
 | `database-write` | HIGH | insert/update/delete/drop *next to* sql/db/table |
+| `secret-in-args` | MEDIUM | a launch argument that looks like a credential `hardcoded-secret` cannot name: `Authorization: Bearer x`, `password=` in a connection string, a long random token (not a `sha256:` digest). It shows in process lists, and the lock's HMAC of the arguments can be brute-forced |
 | `hardcoded-secret` | HIGH | literal values for `*_TOKEN`, `*_KEY`, `*_SECRET`, `*PASSWORD`, `Authorization` in `env` or `headers`; `--api-key=X`, `--api-key X` and `API_KEY=X` args; credentials in the server URL or in a `scheme://user:pw@host` arg. Values are never printed. References such as `${env:X}`, `${input:x}`, `${file:/path}`, `${{ secrets.X }}`, `$VAR` and `%VAR%` are ignored |
 | `broad-filesystem-scope` | HIGH | a server arg that is exactly `/`, `~`, `C:\`, `/home`, `/Users`, `/etc`, `/root`, `$HOME` or `%USERPROFILE%` |
 | `database` | MEDIUM | sql, query, database, postgres, redis... |
@@ -359,6 +360,55 @@ A client may auto-approve such a tool. `destructiveHint: false` only promises ad
 **Format.** Lock files are written in format 2: per tool, the values of the four security hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`; a non-boolean value is stored as `<non-boolean>`, never in clear), plus hashes of the annotations and of the normalized description. Format 1 locks (v0.4 to v0.6) are still read. To migrate one, run `mcp-guard lock CONFIG --update` (add `--live` if it was a live lock). The command rewrites the lock in format 2 and keeps its salt. It refuses if anything changed since the lock was written, so a migration can never approve a rug pull: review the changes with `inspect --lock`, then run `lock` without `--update`. Servers and tools are written in a fixed order, so reordering the servers or the keys of a config never changes the lock.
 
 Commit the lock next to the config so changes show up in review. Secrets never reach it, not even hashed. Arguments are redacted, and values whose name looks like a credential (`*_TOKEN`, `*_KEY`, `Authorization`...) are left out, so rotating a key does not trigger an alert. Server `instructions` sent at initialization are checked for poisoning, but not fingerprinted yet. A lock made with `--live` must be checked with `--live` (and vice versa). `lock --live` refuses to write a lock if a server cannot be reached; when checking, an unreachable server is reported as `live-discovery-failed` rather than as removed tools. A changed tool also goes through the normal audit, so a rug pull that adds hidden instructions shows both `tool-changed` and `tool-poisoning`.
+
+**Pins and identity.** For each stdio server, `lock` also records a command `pin`:
+- the resolved executable, with your home directory written as `~`;
+- the arguments, in a strict form: no secret, only the scheme and host of a URL, no token-like word. A salted HMAC of their exact value detects any change;
+- the SHA-256 of the executable and of the script it runs;
+- the date.
+
+The arguments' HMAC is keyed by the lock's `salt`, which is stored in the lock itself. The HMAC stops precomputed tables, not guessing: anyone who reads the lock can recover a guessable value. Keep secrets in env variables, never in arguments. `secret-in-args` (MEDIUM) flags arguments that look like one: `Bearer x`, `password=` in a connection string, or a long random token.
+
+With `--live`, it also records the server's `identity`: its name and version, and a hash of its capabilities. `inspect --lock` compares the identity (`server-changed` MEDIUM). `proxy` compares both, see below.
+
+### `proxy`: watch a server while you use it
+
+**The proxy prevents nothing; it makes changes visible.** (In French: « le proxy n'empêche rien, il rend visible ».) A server can behave during your audit and change later, in the middle of a session. Put mcp-guard between your client and a stdio server: it forwards every byte unchanged and tells you, on stderr, when what the server declares no longer matches what you approved.
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "mcp-guard",
+      "args": ["proxy", "--lock", "/path/to/mcp-guard.lock", "--",
+               "npx", "-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}
+```
+
+```text
+mcp-guard: the server says its tools changed; the next tools/list will show what changed
+mcp-guard: [HIGH] tool-changed (during this session) read_notes: annotation readOnlyHint: true -> false
+```
+
+**What it compares:**
+- **every complete `tools/list`:** with the lock, and with the previous list of the same session. The changes are the ones `inspect --lock` reports. Each list is also checked for poisoning and annotation contradictions.
+- **`notifications/tools/list_changed`:** noted. The next list shows what changed.
+- **the server identity** (`initialize`, `server/discover` or `_meta`): with the lock and within the session.
+- **the command pin, at start:** a different executable or script hash, different arguments or another program is `command-pin-changed` HIGH. The same program at another path is only a note, because `npx` lives in a different place on every machine.
+
+The proxy finds its lock entry from the command it runs. When two entries run the same command, it asks for `--server-name`. When none matches, or there is no lock, it says so and compares within the session only.
+
+**Fail-open.** A missing or corrupt lock, a journal it cannot write, a line that is not JSON, or an internal error never stops a message. The proxy reports the problem and goes on. It has no blocking mode. The server's exit code, SIGINT/SIGTERM and the end of stdin pass through. The server's stderr is relayed with each line prefixed `server: `, so it cannot pass for an `mcp-guard:` line.
+
+**Journal.** `--record session.jsonl` appends one line per message: time, direction, method, id, size and SHA-256. The file is ASCII JSON, readable by its owner only. Recording never slows the traffic: when its queue is full, entries are dropped and counted. `--record-bodies` also keeps the full messages, which can contain secrets, and the file has no size limit.
+
+**Limits:**
+- Inspection is bounded: 1,000 lines or 64 MB waiting, 2,000 tools per list, 16 MB per line. Beyond these limits a hostile server's messages are still forwarded but not inspected, and the proxy says so.
+- When the server is a launcher (`npx`, a `.cmd` file), stopping the proxy stops the launcher. Its children may stay behind.
+
+The proxy reads the 2026-07-28 MCP revision too (`server/discover`, no `initialize`, `_meta` serverInfo, `subscriptionId`). Only stdio is supported.
 
 ### `test-injection <agent_script>`
 

@@ -30,7 +30,9 @@ from .lock import (
 from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
 from .pipeline import AuditRun, Loader, run_audit
+from .redact import secret_arg, secret_args
 from .rules import DEFAULT_RULESET, load_ruleset
+from .runtime.proxy import run_proxy
 from .sarif import to_sarif
 from .snapshot import MCPSnapshot
 from .text import printable
@@ -246,8 +248,9 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
     if update:
         _update_lock(collect(data, source, results), output)
         return
-    snap = fingerprint(collect(data, source, results))
+    snap = fingerprint(collect(data, source, results), pins=True)
     write_lock(snap, output)
+    _warn_secret_args(static)
     again = " --live" if live else ""
     target = (str(config_file) if config_file
               else " ".join(f'--server "{v}"' for v in servers))
@@ -255,6 +258,20 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
                  f"({snap.mode} mode) in {escape(str(output))}.\n"
                  f"Commit it, then check with: mcp-guard inspect "
                  f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+def _warn_secret_args(snap: MCPSnapshot) -> None:
+    """The pin keeps arguments as a salted HMAC whose salt is in the lock:
+    a guessable secret among them can be recovered by whoever reads it."""
+    for server in snap.servers:
+        if server.spec is None:
+            continue
+        args = [str(a) for a in server.spec.args]
+        if any(secret_arg(a, p) for a, p in zip(args, [None, *args])) or secret_args(args):
+            stderr.print(f"[yellow]warning: {escape(printable(server.name, 60))}: an argument "
+                         "looks secret. The lock masks it, but its HMAC salt is in the same "
+                         "file, so a guessable value can be recovered: pass it through an "
+                         "env variable instead.[/]")
 
 
 def _update_lock(current: MCPSnapshot, path: Path) -> None:
@@ -509,3 +526,29 @@ def snapshot_diff(old: Path, new: Path, fmt: str, output: Path | None,
         renderer.render_diff(diff)
     if exit_code and diff.changed:
         raise SystemExit(1)
+
+
+# --- proxy ------------------------------------------------------------------------
+
+
+@cli.command(context_settings={"ignore_unknown_options": True,
+                               "allow_interspersed_args": False})
+@click.option("--lock", "lock_file", type=click.Path(dir_okay=False, path_type=Path),
+              help="Compare what the server declares with this lock (from `lock --live`).")
+@click.option("--record", "record_file", type=click.Path(dir_okay=False, path_type=Path),
+              help="Append a JSON-lines journal of the messages (sizes and hashes).")
+@click.option("--record-bodies", is_flag=True,
+              help="Also keep full messages in the journal (can contain secrets).")
+@click.option("--server-name", help="The lock entry of this server, when it is ambiguous.")
+@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED)
+def proxy(lock_file: Path | None, record_file: Path | None, record_bodies: bool,
+          server_name: str | None, command: tuple[str, ...]) -> None:
+    """Run a stdio MCP server through mcp-guard: `mcp-guard proxy -- npx -y pkg`.
+
+    Every byte is passed on unchanged. What the server declares (tools,
+    annotations, identity) is compared with the lock and within the session,
+    and differences are reported on stderr, prefixed `mcp-guard:`. The proxy
+    prevents nothing; it makes changes visible.
+    """
+    raise SystemExit(run_proxy(command[0], list(command[1:]), lock_file, record_file,
+                               record_bodies, server_name))

@@ -17,6 +17,7 @@ from typing import Any, TypeAlias
 from pydantic import ValidationError
 
 from .formats import Discovered, discover
+from .identity import identity_from
 from .live import Capture, Fetcher, LiveError, LiveResults, capture_server, fetch_all
 from .models import ServerSpec, ToolSpec, error_fields
 from .snapshot import (
@@ -114,6 +115,7 @@ def _captured(base: ServerSnapshot, outcome: Outcome) -> ServerSnapshot:
         "prompts": tuple(p for p in prompts if isinstance(p, PromptSnapshot)),
         "capture_warnings": tuple(warnings),
         "instructions": capture.instructions,
+        "identity": identity_from(capture.identity),
     })
 
 

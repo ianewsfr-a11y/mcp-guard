@@ -117,6 +117,10 @@ BUILTIN_CHECKS: dict[str, str] = {
                                  "annotations, but its name or description says it writes, "
                                  "deletes or runs commands: a client may auto-approve it."),
     "hardcoded-secret": "A credential is stored in plain text in the configuration.",
+    "secret-in-args": ("A launch argument looks like a credential (a bearer token, a "
+                       "password in a connection string, a long random token). It shows in "
+                       "process lists, and the lock's salted HMAC of the arguments can be "
+                       "brute-forced by anyone who reads the lock: use an env variable."),
     "broad-filesystem-scope": "The server is given access to a root or home directory.",
     "insecure-transport": "A remote server is reached over plain HTTP.",
     "malformed-entry": "The entry could not be parsed and must be audited manually.",

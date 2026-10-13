@@ -26,6 +26,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from . import __version__
+from .identity import ServerIdentity
 from .models import ServerSpec, ToolSpec, label_of
 from .redact import stored_spec, stored_text
 
@@ -108,6 +109,7 @@ class ServerSnapshot(_Frozen):
     prompts: tuple[PromptSnapshot, ...] = ()
     capture_warnings: tuple[str, ...] = ()
     instructions: str | None = None  # from the initialize result (live only)
+    identity: ServerIdentity | None = None  # serverInfo and capabilities (live only)
 
     @field_serializer("spec")
     def _redacted(self, spec: ServerSpec | None) -> dict[str, Any] | None:
@@ -165,10 +167,14 @@ class MCPSnapshot(_Frozen):
         return cls.model_validate_json(text)
 
 
+_OPTIONAL_SERVER_FIELDS = frozenset({"instructions", "identity"})
+
+
 def _without_empty_instructions(data: dict[str, Any]) -> dict[str, Any]:
-    """Servers without instructions serialize as before the field existed."""
+    """Servers without instructions or identity serialize as before these
+    fields existed, so their digest does not change."""
     data["servers"] = [{k: v for k, v in server.items()
-                        if k != "instructions" or v is not None}
+                        if k not in _OPTIONAL_SERVER_FIELDS or v is not None}
                        for server in data["servers"]]
     return data
 
