@@ -350,7 +350,7 @@ def test_lock_fingerprints_are_unchanged_by_the_snapshot():
     legacy = hashlib.sha256(json.dumps(others, sort_keys=True, separators=(",", ":"),
                                        ensure_ascii=False, default=str).encode()).hexdigest()
     tool = _snap(live=LIVE).server("ops-toolbox").tools[0]
-    assert tool_print(tool).metadata == legacy
+    assert tool_print(tool, version=1).metadata == legacy  # how v1 locks are compared
     lock = fingerprint(_snap(live=LIVE))
     assert lock.mode == "live" and "ops-toolbox > read_notes" in {t.label for t in lock.tools}
 

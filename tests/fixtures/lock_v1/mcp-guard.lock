@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "generator": "mcp-guard 0.6.0",
+  "created": "2026-10-13T15:55:21+00:00",
+  "mode": "static",
+  "salt": "bd5ca6564b75765c11db48c2aa82c0d4",
+  "servers": {
+    "zeta": {
+      "launch": "f1239a574f62f67c4f01670a0836deaa36597a8dad3e40fa7a5fee374cde20c1",
+      "settings": "aa43b5ae96b1b6fcc63e0026b13212477d728336ebcca2f482dcf76c00c04866"
+    },
+    "alpha": {
+      "launch": "7ffaaea0f63090100426d268c76de47b0401de865f94f20d8064c05320d0995b",
+      "settings": "58ed78572e335673f83a52773d03cadcae0871109ac48683a21d0991bcf9cfe3"
+    },
+    "remote": {
+      "launch": "9ae3af31a1b35edb00cc363565cb22e8f1bccfb29ef5ca913bc438455b405d3f",
+      "settings": "49528f3325cb7bcc0ecff3bd736abd4c7235090c540560787e8b6d7b6cdef965"
+    }
+  },
+  "tools": [
+    {
+      "server": null,
+      "name": "read_notes",
+      "occurrence": 0,
+      "description": "ae5ea89236363e2289aee7063b85dfcf2c95f52b7c595f154818f45877cfabcd",
+      "input_schema": "e36382ec6abef464816fd2d62cfb88a3995907a5e91763b95fe4cbed24380252",
+      "metadata": "e498bf397768119aab4c27c95440e48bbee4f31be8178153a7406eccaf2ef562",
+      "preview": "Read the user's notes."
+    },
+    {
+      "server": null,
+      "name": "delete_note",
+      "occurrence": 0,
+      "description": "c35039514df6aafbb0c4844203f8a44cf07bb69b54b5046ddb95419c3a16c846",
+      "input_schema": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "metadata": "3a50a86a7d1dddde6a4a414327decb9407654c70c7bae04ba3b0a8ecfe369fda",
+      "preview": "Delete a note."
+    }
+  ]
+}
