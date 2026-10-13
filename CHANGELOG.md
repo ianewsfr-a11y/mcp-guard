@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.7.0
+
+### Upgrading from v0.6
+- **The terminal UI is now an extra.** After upgrading, `mcp-guard ui` asks for it. Reinstall with `pipx install --force "mcp-guard-audit[ui]"`, or `pip install --upgrade "mcp-guard-audit[ui]"`. Every other command works without it.
+- **Lock file format 2, new severities.** v0.4 to v0.6 locks are still read and compared. Migrate one with `mcp-guard lock CONFIG --update` (add `--live` for a live lock): it keeps the salt, and refuses if anything changed since the lock was written. Severities:
+  - description, annotation or input schema change HIGH;
+  - other metadata MEDIUM;
+  - tool added MEDIUM;
+  - tool removed LOW.
+- **Poisoning is checked on every surface** (tools, resources, prompts, server instructions) on a new scale: an injection marker alone HIGH, a URL or path alone MEDIUM, no CRITICAL. Replace `--fail-on critical` with `--fail-on high` in CI.
+- **Snapshot digests of multi-server configs change**: servers are now sorted by name in the canonical form. Re-save the snapshots you keep as references.
 
 ### Added
 - **Hidden-instruction detection on every text surface** of a snapshot, one finding per field:

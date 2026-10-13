@@ -1,6 +1,6 @@
 """mcp-guard: minimalist security audit CLI for MCP servers and AI agents."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from .analysis import analyze_server, analyze_tool
 from .analyzer import analyze, audit

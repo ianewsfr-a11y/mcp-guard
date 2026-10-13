@@ -83,10 +83,10 @@ Requires Python 3.10+.
 ```bash
 # with pipx (isolated environment, recommended for command-line tools):
 pipx install mcp-guard-audit
+# with the terminal UI (`mcp-guard ui`):
+pipx install "mcp-guard-audit[ui]"
 # or with pip (in a virtualenv, or for your user):
-pip install mcp-guard-audit
-# latest development version:
-pip install git+https://github.com/ianewsfr-a11y/mcp-guard
+pip install mcp-guard-audit            # pip install "mcp-guard-audit[ui]" for the UI
 ```
 
 The terminal UI (`mcp-guard ui`) is an optional extra, so CI installs stay light. Add it with `pipx install "mcp-guard-audit[ui]"` or `pip install "mcp-guard-audit[ui]"`. Without it, every other command works, and `mcp-guard ui` prints the exact command to add it.
@@ -98,7 +98,7 @@ python -m pip install --user pipx
 python -m pipx ensurepath   # then open a new terminal
 ```
 
-To upgrade: `pipx upgrade mcp-guard-audit` or `pip install --upgrade mcp-guard-audit`.
+To upgrade: `pipx upgrade mcp-guard-audit` or `pip install --upgrade mcp-guard-audit`. Coming from v0.6 or earlier with the UI, reinstall with the extra: `pipx install --force "mcp-guard-audit[ui]"`.
 
 The PyPI package is `mcp-guard-audit` (the name `mcp-guard` is too close to an existing project); it installs the `mcp-guard` command. `python -m mcp_guard` works too.
 
