@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-guard"
+name = "mcp-guard-audit"
 dynamic = ["version"]
 description = "Security audit CLI for MCP servers and AI agents: risky tools, tool poisoning, leaked secrets"
 readme = "README.md"

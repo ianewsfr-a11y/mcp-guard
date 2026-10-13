@@ -39,14 +39,14 @@ $ mcp-guard inspect config_example.json
 Requires Python 3.10+.
 
 ```bash
-pipx install mcp-guard
+pipx install mcp-guard-audit
 # or, in a virtualenv:
-pip install mcp-guard
+pip install mcp-guard-audit
 # latest development version:
 pipx install git+https://github.com/ianewsfr-a11y/mcp-guard
 ```
 
-This installs the `mcp-guard` command. `python -m mcp_guard` works too.
+The PyPI package is `mcp-guard-audit` (the name `mcp-guard` is too close to an existing project); it installs the `mcp-guard` command. `python -m mcp_guard` works too.
 
 ## Commands
 

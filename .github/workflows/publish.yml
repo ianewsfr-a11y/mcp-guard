@@ -3,7 +3,7 @@
 #
 # One-time setup on https://pypi.org/manage/account/publishing/ ("Add a new
 # pending publisher"):
-#   PyPI project name: mcp-guard
+#   PyPI project name: mcp-guard-audit
 #   Owner:             ianewsfr-a11y
 #   Repository name:   mcp-guard
 #   Workflow name:     publish.yml
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/mcp-guard
+      url: https://pypi.org/p/mcp-guard-audit
     permissions:
       id-token: write  # OIDC token for Trusted Publishing, nothing else
     steps:
