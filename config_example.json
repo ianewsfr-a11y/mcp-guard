@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+    },
+    "ops-toolbox": {
+      "command": "sudo",
+      "args": ["python", "ops_server.py"],
+      "env": {
+        "OPS_API_TOKEN": "sk-live-1234567890abcdef",
+        "LOG_LEVEL": "debug"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "read_user_file",
+      "description": "Read the content of a file from the user's documents folder.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "path": { "type": "string" } },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "fetch_url",
+      "description": "Download a web page over HTTP and return its text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "url": { "type": "string" } },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "update_customer_record",
+      "description": "Run an SQL UPDATE on the customers database table.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "execute_bash_command",
+      "description": "Execute an arbitrary shell command on the host as root.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "command": { "type": "string" } },
+        "required": ["command"]
+      }
+    }
+  ]
+}
