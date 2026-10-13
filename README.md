@@ -316,6 +316,28 @@ pip install -e ".[dev]"
 pytest --cov=mcp_guard --cov-report=term-missing
 ```
 
+### Architecture
+
+An audit runs in three separate stages:
+
+```
+collect (config, --live)  ->  MCPSnapshot  ->  analyze  ->  findings  ->  render (table, JSON, SARIF, TUI)
+```
+
+- **`collector`** is the only code that reads raw config data or server answers. It produces an `MCPSnapshot` (`mcp_guard/snapshot.py`): each server with its spec, and with `--live` the tools, resources and prompts it declared. Each tool keeps its raw description, input schema, annotations and provenance (`tools[2]` in the file, or `tools/list[0]` from a server).
+- **`analyzer`** takes a snapshot and returns findings. Each finding has a stable `id`, also used as the SARIF fingerprint and present in `--format json`.
+- **`renderer`**, the CLI and the TUI only display.
+
+`snapshot.canonical_json()` is a stable serialization (sorted keys, compact, ASCII) and `snapshot.digest` its SHA-256. Capture time, file path and mcp-guard version are left out, so two captures of an unchanged setup have the same digest. Serialized snapshots never contain a literal secret. Env and header values are replaced by `<redacted>` unless they are references such as `${env:API_KEY}`. Secrets in arguments, URLs (userinfo, query) and extra settings are redacted too. Re-analyzing a snapshot read back from JSON therefore reports secrets differently: analyze the capture itself.
+
+```python
+from mcp_guard import analyze, collect, load_config
+
+snapshot = collect(load_config(path), source=path.name)
+for entry in analyze(snapshot):
+    print(entry.label, entry.risk.name, [f.id for f in entry.findings])
+```
+
 Contributions are welcome: new detection rules, config formats and payloads especially. Please open an issue first for larger changes. See [CHANGELOG.md](https://github.com/ianewsfr-a11y/mcp-guard/blob/main/CHANGELOG.md) for release notes.
 
 ## Going further: governance for teams

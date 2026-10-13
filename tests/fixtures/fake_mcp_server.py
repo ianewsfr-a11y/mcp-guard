@@ -1,6 +1,7 @@
 """Minimal stdio MCP server for tests. Usage: fake_mcp_server.py MODE
 
-Modes: ok, paginate, no-tools, crash, hang, noisy (stray log line + ping request).
+Modes: ok, paginate, no-tools, crash, hang, noisy (stray log line + ping request),
+full (also declares resources and prompts), badlists (declares them, lists fail).
 """
 
 import json
@@ -29,6 +30,8 @@ def handle(message):
     method, request_id = message.get("method"), message.get("id")
     if method == "initialize":
         capabilities = {} if MODE == "no-tools" else {"tools": {}}
+        if MODE in ("full", "badlists"):
+            capabilities.update({"resources": {}, "prompts": {}})
         send({"jsonrpc": "2.0", "id": request_id, "result": {
             "protocolVersion": "2025-06-18", "capabilities": capabilities,
             "serverInfo": {"name": "fake", "version": "0"}}})
@@ -49,6 +52,19 @@ def handle(message):
         else:
             result = {"tools": PAGES[0] + PAGES[1]}
         send({"jsonrpc": "2.0", "id": request_id, "result": result})
+    elif method == "resources/list":
+        if MODE == "badlists":
+            send({"jsonrpc": "2.0", "id": request_id,
+                  "error": {"code": -32603, "message": "resources unavailable"}})
+        else:
+            send({"jsonrpc": "2.0", "id": request_id, "result": {"resources": [
+                {"uri": "file:///notes/today.md", "name": "today", "mimeType": "text/markdown"},
+                {"name": "no uri"}]}})
+    elif method == "prompts/list":
+        prompts = "oops" if MODE == "badlists" else [
+            {"name": "summarize", "description": "Summarize notes.",
+             "arguments": [{"name": "topic", "required": True}]}]
+        send({"jsonrpc": "2.0", "id": request_id, "result": {"prompts": prompts}})
 
 
 for line in sys.stdin:

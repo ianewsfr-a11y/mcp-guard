@@ -10,24 +10,19 @@ import click
 from rich.console import Console
 from rich.markup import escape
 
-from . import __version__, render
-from .formats import Discovered, discover, load_config
+from . import __version__, renderer
+from .collector import capture_live, collect, launch_plan
+from .formats import load_config
 from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
 from .inline import SOURCE_LABEL, servers_from_cli
-from .live import (
-    LiveError,
-    LiveResults,
-    describe_launch,
-    fetch_all,
-    launch_plan,
-    launch_warnings,
-)
-from .lock import DEFAULT_LOCK, snapshot, write_lock
+from .live import LiveError, LiveResults, describe_launch, launch_warnings
+from .lock import DEFAULT_LOCK, fingerprint, write_lock
 from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
 from .pipeline import AuditRun, Loader, run_audit
 from .rules import DEFAULT_RULESET, load_ruleset
 from .sarif import to_sarif
+from .snapshot import MCPSnapshot
 from .text import printable
 from .ui import run_ui
 
@@ -73,14 +68,21 @@ def _confirm_live(plan: list, assume_yes: bool) -> None:
         click.confirm("Continue?", abort=True, err=True)
 
 
-def _live_results(servers: dict, timeout: float, assume_yes: bool) -> LiveResults:
-    plan = launch_plan(servers)
+def _live_results(snap: MCPSnapshot, timeout: float, assume_yes: bool) -> LiveResults:
+    plan = launch_plan(snap)
     if not plan:
         stderr.print("[yellow]--live: no server to contact in this file.[/]")
         return {}
     _confirm_live(plan, assume_yes)
-    with stderr.status("Fetching tools/list from each server..."):
-        return fetch_all(plan, timeout)
+    with stderr.status("Fetching tools, resources and prompts from each server..."):
+        return capture_live(plan, timeout)
+
+
+def _static_snapshot(data: Any, source: str) -> MCPSnapshot:
+    try:
+        return collect(data, source)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
 
 
 def _load_input(config_file: Path | None, servers: tuple[str, ...]) -> tuple[Any, str]:
@@ -95,19 +97,19 @@ def _load_input(config_file: Path | None, servers: tuple[str, ...]) -> tuple[Any
         raise InputError(str(exc)) from exc
 
 
-def _reload_live(found: Discovered, confirmed: dict[str, ServerSpec],
+def _reload_live(snap: MCPSnapshot, confirmed: dict[str, ServerSpec],
                  timeout: float) -> LiveResults:
     """Live results for a refresh, without a new prompt: only servers whose
     spec is exactly the one the user confirmed are started again."""
     results: LiveResults = {}
     plan = []
-    for name, spec in launch_plan(found.servers):
+    for name, spec in launch_plan(snap):
         if confirmed.get(name) == spec:
             plan.append((name, spec))
         else:
             results[name] = LiveError("added or changed since you confirmed --live; "
                                       "restart to approve it")
-    return {**results, **fetch_all(plan, timeout)}
+    return {**results, **capture_live(plan, timeout)}
 
 
 def _collect(config_file: Path | None, servers: tuple[str, ...], rules_file: Path | None,
@@ -117,15 +119,16 @@ def _collect(config_file: Path | None, servers: tuple[str, ...], rules_file: Pat
     data, source = _load_input(config_file, servers)
     try:
         ruleset = load_ruleset(rules_file) if rules_file else DEFAULT_RULESET
-        found = discover(data)
     except ConfigFormatError as exc:
         raise InputError(str(exc)) from exc
-    results = _live_results(found.servers, timeout, assume_yes) if live else None
-    confirmed = dict(launch_plan(found.servers)) if live else {}
+    static = _static_snapshot(data, source)
+    results = _live_results(static, timeout, assume_yes) if live else None
+    confirmed = dict(launch_plan(static)) if live else {}
 
     def reload() -> AuditRun:
         fresh = load_config(config_file) if config_file else data
-        fresh_live = _reload_live(discover(fresh), confirmed, timeout) if live else None
+        fresh_live = (_reload_live(collect(fresh, source), confirmed, timeout)
+                      if live else None)
         return run_audit(fresh, source, ruleset, fresh_live, lock_file)
 
     try:
@@ -179,10 +182,10 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
     entries, ruleset = run.entries, run.ruleset
 
     if fmt == "table":
-        render.render_table(entries, run.source,
-                            run.found.format if config_file else "--server")
+        renderer.render_table(entries, run.source,
+                              run.snapshot.format if config_file else "--server")
     elif fmt == "json":
-        _emit(render.entries_to_json(entries), output)
+        _emit(renderer.entries_to_json(entries), output)
     else:
         text = config_file.read_text(encoding="utf-8-sig") if config_file else ""
         uri = _artifact_uri(config_file) if config_file else SOURCE_LABEL
@@ -211,17 +214,14 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
 def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live: bool,
          assume_yes: bool, timeout: float) -> None:
     """Fingerprint servers and tools into a lock file, to detect rug pulls later."""
-    data, _ = _load_input(config_file, servers)
-    try:
-        found = discover(data)
-    except ConfigFormatError as exc:
-        raise InputError(str(exc)) from exc
-    results = _live_results(found.servers, timeout, assume_yes) if live else None
+    data, source = _load_input(config_file, servers)
+    static = _static_snapshot(data, source)
+    results = _live_results(static, timeout, assume_yes) if live else None
     failed = {n: r for n, r in (results or {}).items() if isinstance(r, LiveError)}
     if failed:
         details = "; ".join(f"{printable(n, 60)}: {e}" for n, e in failed.items())
         raise InputError(f"cannot lock, some servers could not be reached: {details}")
-    snap = snapshot(found, results)
+    snap = fingerprint(collect(data, source, results))
     write_lock(snap, output)
     again = " --live" if live else ""
     target = (str(config_file) if config_file
@@ -315,13 +315,13 @@ def test_injection(target: Path, run: bool, only: str | None, timeout: float,
         if as_json:
             click.echo(json.dumps([p.model_dump() for p in payloads], indent=2))
         else:
-            render.render_payloads(payloads, str(target))
+            renderer.render_payloads(payloads, str(target))
         return
     results = _run_injection(target, only, timeout, assume_yes)
     if as_json:
         click.echo(json.dumps([r.model_dump() for r in results], indent=2))
     else:
-        render.render_injection_results(results, target.name)
+        renderer.render_injection_results(results, target.name)
     verdicts = {r.verdict for r in results}
     if "FAIL" in verdicts:
         raise SystemExit(1)

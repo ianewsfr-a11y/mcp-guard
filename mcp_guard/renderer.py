@@ -72,7 +72,7 @@ def _poisoning_alert(entries: tuple[AuditEntry, ...]) -> None:
 def entries_to_json(entries: tuple[AuditEntry, ...]) -> str:
     payload = [
         {"kind": e.kind, "name": e.name, "server": e.server, "risk": e.risk.name,
-         "findings": [{"category": f.category, "risk": f.risk.name,
+         "findings": [{"id": f.id, "category": f.category, "risk": f.risk.name,
                        "evidence": f.evidence} for f in e.findings]}
         for e in entries
     ]

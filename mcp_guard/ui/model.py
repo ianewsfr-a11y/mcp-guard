@@ -7,16 +7,16 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from pydantic import ValidationError
 from rich.console import Group as RichGroup
 from rich.console import RenderableType
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from ..analysis import redact_args, safe_url
-from ..models import AuditEntry, Risk, ServerSpec
+from ..models import AuditEntry, Risk
 from ..pipeline import AuditRun
+from ..redact import redact_args, safe_url, stored_spec
+from ..snapshot import ServerSnapshot, ToolSnapshot
 from ..text import printable
 
 LOCK_CATEGORIES = frozenset({"tool-changed", "server-changed", "tool-added", "server-added",
@@ -38,8 +38,17 @@ class Item:
     name: str
     server: str | None
     entry: AuditEntry | None
-    raw: Any = None
+    snapshot: ToolSnapshot | ServerSnapshot | None = None
     lock_status: str | None = None  # None: no lock file in use
+
+    @property
+    def raw(self) -> dict[str, Any] | None:
+        """The item as MCP describes it (a server spec is redacted)."""
+        if isinstance(self.snapshot, ToolSnapshot):
+            return self.snapshot.to_mcp()
+        if isinstance(self.snapshot, ServerSnapshot) and self.snapshot.spec is not None:
+            return stored_spec(self.snapshot.spec)
+        return None
 
     @property
     def risk(self) -> Risk:
@@ -71,18 +80,18 @@ def lock_status(entry: AuditEntry | None, lock_used: bool) -> str | None:
     return "; ".join(f"{f.category}: {f.evidence}" for f in findings)
 
 
-def _raw_tools(run: AuditRun, server: str | None) -> list[Any]:
+def _tools_of(run: AuditRun, server: str | None) -> list[ToolSnapshot]:
     if server is None:
-        return list(run.found.tools)
-    outcome = (run.live or {}).get(server)
-    return outcome if isinstance(outcome, list) else []
+        return list(run.snapshot.tools)
+    found = run.snapshot.server(server)
+    return list(found.tools) if found else []
 
 
-def _take_raw(pool: list[Any], name: str) -> Any:
-    for index, raw in enumerate(pool):
-        if isinstance(raw, dict) and raw.get("name") == name:
-            return pool.pop(index)
-    return None
+def _take(pool: list[ToolSnapshot], name: str) -> ToolSnapshot | None:
+    """The first tool with that name, removed from the pool so that a second
+    tool with the same name gets the second snapshot."""
+    index = next((i for i, tool in enumerate(pool) if tool.name == name), None)
+    return None if index is None else pool.pop(index)
 
 
 def build_groups(run: AuditRun) -> list[Group]:
@@ -90,20 +99,20 @@ def build_groups(run: AuditRun) -> list[Group]:
     Riskiest first inside each group."""
     lock_used = run.lock is not None
     groups: dict[str | None, Group] = {}
-    pools: dict[str | None, list[Any]] = {}
-    for name in run.found.servers:
-        groups[name] = Group(title=name, server=None)
+    pools: dict[str | None, list[ToolSnapshot]] = {}
+    for server in run.snapshot.servers:
+        groups[server.name] = Group(title=server.name, server=None)
     for entry in run.entries:
         key = entry.name if entry.kind == "server" else entry.server
         group = groups.setdefault(key, Group(title=key or STATIC_TOOLS, server=None))
         if entry.kind == "server":
             group.server = Item("server", entry.name, None, entry,
-                                run.found.servers.get(entry.name),
+                                run.snapshot.server(entry.name),
                                 lock_status(entry, lock_used))
         else:
-            pool = pools.setdefault(key, _raw_tools(run, key))
+            pool = pools.setdefault(key, _tools_of(run, key))
             group.tools.append(Item("tool", entry.name, entry.server, entry,
-                                    _take_raw(pool, entry.name), lock_status(entry, lock_used)))
+                                    _take(pool, entry.name), lock_status(entry, lock_used)))
     for group in groups.values():
         group.tools.sort(key=lambda item: item.risk, reverse=True)
     ordered = [g for k, g in groups.items() if k is not None]
@@ -120,12 +129,11 @@ def summary(run: AuditRun) -> str:
 # --- detail panel ---------------------------------------------------------------
 
 
-def _server_display(raw: Any) -> dict[str, Any]:
+def _server_display(server: ServerSnapshot) -> dict[str, Any]:
     """A server spec safe to show: args redacted, URL without query,
     env/header names only."""
-    try:
-        spec = ServerSpec.model_validate(raw)
-    except ValidationError:
+    spec = server.spec
+    if spec is None:
         return {"malformed": True}
     shown: dict[str, Any] = {}
     if spec.url:
@@ -175,15 +183,34 @@ def detail(item: Item | None, dark: bool = True) -> RenderableType:
     parts += [Text(""), Text("Lock: ", style="bold")
               + Text(item.lock_status or "no lock file (use `mcp-guard lock`, then --lock)",
                      style="" if item.lock_status else "dim")]
-    if item.kind == "tool" and isinstance(item.raw, dict):
-        description = printable(str(item.raw.get("description") or ""), 2000)
-        parts += [Text(""), Text("Description", style="bold"), Text(description or "(none)"),
-                  Text(""), Text("Input schema", style="bold"),
-                  _json(item.raw.get("inputSchema") or {}, dark)]
-    elif item.kind == "server" and item.raw is not None:
-        parts += [Text(""), Text("Launch (secrets redacted)", style="bold"),
-                  _json(_server_display(item.raw), dark)]
+    if isinstance(item.snapshot, ToolSnapshot):
+        parts += _tool_detail(item.snapshot, dark)
+    elif isinstance(item.snapshot, ServerSnapshot):
+        parts += _server_detail(item.snapshot, dark)
     return RichGroup(*parts)
+
+
+def _tool_detail(tool: ToolSnapshot, dark: bool) -> list[RenderableType]:
+    description = printable(tool.description, 2000)
+    parts: list[RenderableType] = [
+        Text(""), Text("Description", style="bold"), Text(description or "(none)"),
+        Text(""), Text("Input schema", style="bold"), _json(tool.input_schema, dark)]
+    if tool.annotations:
+        parts += [Text(""), Text("Annotations (declared by the server)", style="bold"),
+                  _json(tool.annotations, dark)]
+    return parts
+
+
+def _server_detail(server: ServerSnapshot, dark: bool) -> list[RenderableType]:
+    parts: list[RenderableType] = [Text(""), Text("Launch (secrets redacted)", style="bold"),
+                                   _json(_server_display(server), dark)]
+    if server.live_status == "captured":
+        counts = (f"{len(server.tools)} tool(s), {len(server.resources)} resource(s), "
+                  f"{len(server.prompts)} prompt(s)")
+        parts += [Text(""), Text("Live capture: ", style="bold") + Text(counts)]
+        parts += [Text(f"  {printable(w, 300)}", style="yellow")
+                  for w in server.capture_warnings]
+    return parts
 
 
 def lock_report(run: AuditRun) -> RenderableType:

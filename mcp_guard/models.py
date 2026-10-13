@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 from enum import IntEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 
 class Risk(IntEnum):
@@ -28,16 +36,42 @@ class ConfigFormatError(ValueError):
 
 
 class Finding(BaseModel):
+    """`id` is filled in when the finding is attached to an AuditEntry: it is
+    stable across runs and machines for the same issue on the same item."""
+
     model_config = ConfigDict(frozen=True)
 
     category: str
     risk: Risk
     evidence: str
+    id: str = ""
+
+
+def label_of(name: str, server: str | None) -> str:
+    return f"{server} > {name}" if server else name
+
+
+def finding_id(kind: str, label: str, finding: Finding) -> str:
+    """32 hex chars of SHA-256 over rule, item and evidence. The same value is
+    the SARIF partial fingerprint, so GitHub code scanning and JSON reports
+    agree on what is "the same finding". Two identical findings on two tools
+    with the same name and server share an id, as they did in SARIF."""
+    identity = f"mcp-guard/{finding.category}|{kind}|{label}|{finding.evidence}"
+    return hashlib.sha256(identity.encode()).hexdigest()[:32]
+
+
+def _with_id(finding: Any, kind: Any, label: Any) -> Any:
+    if isinstance(finding, Finding) and not finding.id:
+        return finding.model_copy(update={"id": finding_id(str(kind), str(label), finding)})
+    return finding
 
 
 class AuditEntry(BaseModel):
     """One audited item. `server` is set for tools discovered live, so the
-    report can say which server exposes them."""
+    report can say which server exposes them.
+
+    Finding ids are set during validation: build a new AuditEntry to change
+    its findings or name, never `model_copy(update=...)`, which skips it."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -46,13 +80,27 @@ class AuditEntry(BaseModel):
     findings: tuple[Finding, ...]
     server: str | None = None
 
+    @model_validator(mode="after")
+    def _stable_ids(self) -> AuditEntry:
+        if all(f.id for f in self.findings):
+            return self
+        findings = tuple(_with_id(f, self.kind, self.label) for f in self.findings)
+        # frozen model: bypass __setattr__ once, during validation only
+        object.__setattr__(self, "findings", findings)
+        return self
+
     @property
     def risk(self) -> Risk:
         return max((f.risk for f in self.findings), default=Risk.LOW)
 
     @property
     def label(self) -> str:
-        return f"{self.server} > {self.name}" if self.server else self.name
+        return label_of(self.name, self.server)
+
+
+def error_fields(error: ValidationError) -> str:
+    """The fields a validation error is about, e.g. `args, env.KEY`."""
+    return ", ".join(sorted({".".join(map(str, e["loc"])) or "entry" for e in error.errors()}))
 
 
 def _none_to_default(value: Any, default: Any) -> Any:

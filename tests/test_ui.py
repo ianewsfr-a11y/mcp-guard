@@ -12,6 +12,7 @@ from rich.console import Console
 
 from mcp_guard import DEFAULT_RULESET, Risk
 from mcp_guard.cli import _reload_live, cli
+from mcp_guard.collector import collect
 from mcp_guard.formats import discover
 from mcp_guard.live import LiveError
 from mcp_guard.lock import snapshot, write_lock
@@ -275,13 +276,13 @@ def test_cli_ui_input_errors(captured):
 @pytest.mark.integration
 def test_refresh_never_runs_unconfirmed_servers():
     confirmed = {"fake": ServerSpec(command=sys.executable, args=[FAKE_SERVER, "ok"])}
-    found = discover({"mcpServers": {
+    snap = collect({"mcpServers": {
         "fake": {"command": sys.executable, "args": [FAKE_SERVER, "ok"]},
         "new": {"command": "evil", "args": []},
         "changed": {"command": sys.executable, "args": ["x"]}}})
     confirmed["changed"] = ServerSpec(command=sys.executable, args=["y"])
-    results = _reload_live(found, confirmed, timeout=10)
-    assert isinstance(results["fake"], list)
+    results = _reload_live(snap, confirmed, timeout=10)
+    assert [t["name"] for t in results["fake"].tools] == ["read_notes", "run_shell"]
     for name in ("new", "changed"):
         assert isinstance(results[name], LiveError)
         assert "since you confirmed" in str(results[name])

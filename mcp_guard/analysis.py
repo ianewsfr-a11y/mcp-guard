@@ -1,4 +1,6 @@
-"""Static analysis of servers and tools."""
+"""Security rules for one server or one tool: risky capabilities, hardcoded
+secrets, insecure transport, tool poisoning. Pure functions on validated
+specs; `analyzer` applies them to a whole snapshot."""
 
 from __future__ import annotations
 
@@ -8,26 +10,26 @@ from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import ValidationError
 
-from .formats import discover
-from .models import AuditEntry, Finding, Risk, ServerSpec, ToolSpec
+from .models import AuditEntry, Finding, Risk, ServerSpec, ToolSpec, error_fields
 from .poisoning import detect_poisoning
-from .rules import DEFAULT_RULESET, RuleSet, tokenize
+from .redact import (
+    is_literal,
+    is_secret_key,
+    redact_args,
+    redact_value,
+    safe_url,
+    secret_arg,
+    strip_url_credentials,
+)
+from .rules import DEFAULT_RULESET, RuleSet
+
+__all__ = [
+    "analyze_server", "analyze_tool", "audit_server", "audit_tool", "is_secret_key",
+    "malformed", "malformed_entry", "redact_args", "safe_url", "sort_entries",
+    "strip_url_credentials", "with_findings",
+]
 
 _SHELL_LAUNCHERS = frozenset({"cmd", "bash", "sh", "zsh", "powershell", "pwsh"})
-_SECRET_KEY_TOKENS = frozenset(
-    {"token", "key", "apikey", "secret", "password", "passwd", "pwd",
-     "credential", "credentials", "auth", "authorization"}
-)
-# ${VAR}, ${env:VAR}, ${input:id}, ${file:/path} (VS Code, Windsurf),
-# ${{ secrets.X }} (Continue), $VAR, %VAR%.
-_VARIABLE_REFERENCE = re.compile(r"\$\{\{[^}]*\}\}|\$\{[^}]+\}|^\$\w+$|^%\w+%$")
-_SECRET_FLAG = re.compile(
-    r"^(?P<flag>--?[\w-]*(key|token|secret|password)[\w-]*)=(?P<value>.+)$", re.IGNORECASE)
-_SECRET_BARE_FLAG = re.compile(r"^--?[\w-]*(key|token|secret|password)[\w-]*$",
-                               re.IGNORECASE)
-_NOT_A_SECRET_FLAG = re.compile(r"(file|path|dir|name|id)$", re.IGNORECASE)
-_ASSIGNMENT = re.compile(r"^(?P<key>[A-Za-z_][\w.-]*)=(?P<value>.+)$")
-_URL_CREDENTIALS = re.compile(r"(\w+://[^/\s:@]+:)[^@\s/]+@")
 _DANGEROUS_FLAG = re.compile(
     r"^--(privileged|cap-add|pid=host|net=host|network=host)", re.IGNORECASE)
 _BROAD_PATHS = re.compile(
@@ -53,72 +55,20 @@ def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
 # --------------------------------------------------------------------------- #
 
 
-def _redact(value: str) -> str:
-    return f"<redacted, {len(value)} chars>"
-
-
-def _is_secret_key(key: str) -> bool:
-    return bool(tokenize(key) & _SECRET_KEY_TOKENS)
-
-
-def is_secret_key(key: str) -> bool:
-    """Whether an env/header/query name looks like it holds a credential."""
-    return _is_secret_key(key)
-
-
-def strip_url_credentials(value: str) -> str:
-    return _URL_CREDENTIALS.sub(lambda m: m.group(1) + "<redacted>@", value)
-
-
-def _is_literal(value: str) -> bool:
-    return bool(value) and not _VARIABLE_REFERENCE.search(value)
-
-
 def _secret(evidence: str) -> Finding:
     return Finding(category="hardcoded-secret", risk=Risk.HIGH, evidence=evidence)
 
 
-def _secret_arg(arg: str, previous: str | None) -> tuple[str, str] | None:
-    """(evidence, redacted arg) when a launch argument holds a literal secret:
-    `--api-key=X`, `--api-key X`, `API_KEY=X` (e.g. `docker -e`) or a URL
-    with a password such as `postgres://user:pw@host/db`."""
-    flag = _SECRET_FLAG.match(arg)
-    if flag and _is_literal(flag["value"]) and not _NOT_A_SECRET_FLAG.search(flag["flag"]):
-        return f"arg {flag['flag']}={_redact(flag['value'])}", f"{flag['flag']}=<redacted>"
-    assignment = _ASSIGNMENT.match(arg)
-    if (assignment and _is_secret_key(assignment["key"])
-            and _is_literal(assignment["value"])):
-        key = assignment["key"]
-        return f"arg {key}={_redact(assignment['value'])}", f"{key}=<redacted>"
-    if _URL_CREDENTIALS.search(arg):
-        return "arg url credentials in userinfo", _URL_CREDENTIALS.sub(r"\1<redacted>@", arg)
-    if (previous and _SECRET_BARE_FLAG.match(previous)
-            and not _NOT_A_SECRET_FLAG.search(previous)
-            and not arg.startswith("-") and _is_literal(arg)):
-        return f"arg {previous} {_redact(arg)}", "<redacted>"
-    return None
-
-
-def redact_args(args: list[str]) -> list[str]:
-    """Launch arguments with every literal secret replaced, for display."""
-    redacted, previous = [], None
-    for arg in args:
-        found = _secret_arg(arg, previous)
-        redacted.append(found[1] if found else arg)
-        previous = arg
-    return redacted
-
-
 def _secret_findings(server: ServerSpec) -> list[Finding]:
     findings = [
-        _secret(f"{source} {key}={_redact(str(value))}")
+        _secret(f"{source} {key}={redact_value(str(value))}")
         for source, mapping in (("env", server.env), ("header", server.headers))
         for key, value in mapping.items()
-        if _is_secret_key(key) and _is_literal(str(value))
+        if is_secret_key(key) and is_literal(str(value))
     ]
     previous = None
     for arg in map(str, server.args):
-        found = _secret_arg(arg, previous)
+        found = secret_arg(arg, previous)
         if found:
             findings.append(_secret(found[0]))
         previous = arg
@@ -126,20 +76,10 @@ def _secret_findings(server: ServerSpec) -> list[Finding]:
         parts = urlsplit(server.url)
         if parts.password:
             findings.append(_secret("url credentials in userinfo"))
-        findings += [_secret(f"url ?{key}={_redact(value)}")
+        findings += [_secret(f"url ?{key}={redact_value(value)}")
                      for key, value in parse_qsl(parts.query)
-                     if _is_secret_key(key) and _is_literal(value)]
+                     if is_secret_key(key) and is_literal(value)]
     return findings
-
-
-def safe_url(url: str) -> str:
-    """Drop userinfo, query and fragment so credentials never reach the output."""
-    parts = urlsplit(url)
-    try:
-        port = f":{parts.port}" if parts.port else ""
-    except ValueError:  # non-numeric port
-        port = ""
-    return f"{parts.scheme}://{parts.hostname or ''}{port}{parts.path}"
 
 
 def _transport_findings(server: ServerSpec) -> list[Finding]:
@@ -191,13 +131,16 @@ def analyze_server(name: str, server: ServerSpec,
 # --------------------------------------------------------------------------- #
 
 
-def malformed(kind: Literal["server", "tool"], name: str,
-              error: ValidationError, server: str | None = None) -> AuditEntry:
-    fields = ", ".join(sorted({".".join(map(str, e["loc"])) or "entry"
-                               for e in error.errors()}))
+def malformed_entry(kind: Literal["server", "tool"], name: str, fields: str,
+                    server: str | None = None) -> AuditEntry:
     return AuditEntry(kind=kind, name=name, server=server, findings=(Finding(
         category="malformed-entry", risk=Risk.MEDIUM,
         evidence=f"could not be parsed ({fields}), audit it manually"),))
+
+
+def malformed(kind: Literal["server", "tool"], name: str,
+              error: ValidationError, server: str | None = None) -> AuditEntry:
+    return malformed_entry(kind, name, error_fields(error), server)
 
 
 def audit_server(name: str, raw: Any, ruleset: RuleSet = DEFAULT_RULESET) -> AuditEntry:
@@ -219,9 +162,11 @@ def audit_tool(index: int, raw: Any, ruleset: RuleSet = DEFAULT_RULESET,
 def with_findings(entries: tuple[AuditEntry, ...],
                   extra: dict[tuple[str, str], tuple[Finding, ...]],
                   ruleset: RuleSet) -> tuple[AuditEntry, ...]:
-    """Add findings to existing entries, keyed by (kind, label)."""
+    """Add findings to existing entries, keyed by (kind, label). Entries are
+    rebuilt (not copied) so the new findings get their stable ids."""
     return tuple(
-        e.model_copy(update={"findings": ruleset.keep(e.findings + extra[(e.kind, e.label)])})
+        AuditEntry(kind=e.kind, name=e.name, server=e.server,
+                   findings=ruleset.keep(e.findings + extra[(e.kind, e.label)]))
         if (e.kind, e.label) in extra else e
         for e in entries
     )
@@ -231,10 +176,3 @@ def sort_entries(entries: list[AuditEntry], ruleset: RuleSet) -> tuple[AuditEntr
     kept = [e for e in entries
             if e.name not in ruleset.ignore and e.label not in ruleset.ignore]
     return tuple(sorted(kept, key=lambda e: e.risk, reverse=True))
-
-
-def audit(data: Any, ruleset: RuleSet = DEFAULT_RULESET) -> tuple[AuditEntry, ...]:
-    found = discover(data)
-    entries = [audit_server(n, s, ruleset) for n, s in found.servers.items()]
-    entries += [audit_tool(i, t, ruleset) for i, t in enumerate(found.tools)]
-    return sort_entries(entries, ruleset)
