@@ -33,7 +33,7 @@ def test_build_backend_is_hatchling(project):
 @pytest.mark.unit
 def test_core_metadata(project):
     meta = project["project"]
-    assert meta["name"] == "mcp-guard"
+    assert meta["name"] == "mcp-guard-audit"
     assert meta["license"] == "MIT"
     assert meta["requires-python"] == ">=3.10"
     assert meta["readme"] == "README.md"
