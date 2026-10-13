@@ -137,8 +137,12 @@ class MCPSnapshot(_Frozen):
             yield from server.tools
 
     def canonical_json(self) -> str:
-        """Stable serialization of the content (no timestamp, path or generator)."""
-        return _dumps(self.model_dump(mode="json", exclude=set(_VOLATILE)))
+        """Stable serialization of the content (no timestamp, path or generator).
+        Servers come from a JSON object, whose key order means nothing: they
+        are sorted by name. Tools keep their order (they come from arrays)."""
+        data = self.model_dump(mode="json", exclude=set(_VOLATILE))
+        data["servers"] = sorted(data["servers"], key=lambda server: server["name"])
+        return _dumps(data)
 
     @property
     def digest(self) -> str:

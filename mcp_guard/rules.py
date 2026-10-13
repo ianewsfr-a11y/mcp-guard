@@ -112,6 +112,9 @@ DEFAULT_RULES: tuple[Rule, ...] = (
 BUILTIN_CHECKS: dict[str, str] = {
     "tool-poisoning": ("The tool's metadata hides instructions for the model (hidden tags, "
                        "override or concealment phrases, invisible characters)."),
+    "annotation-contradiction": ("The tool claims to be read-only or non-destructive in its "
+                                 "annotations, but its name or description says it writes, "
+                                 "deletes or runs commands: a client may auto-approve it."),
     "hardcoded-secret": "A credential is stored in plain text in the configuration.",
     "broad-filesystem-scope": "The server is given access to a root or home directory.",
     "insecure-transport": "A remote server is reached over plain HTTP.",

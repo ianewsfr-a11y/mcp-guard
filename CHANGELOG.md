@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **`annotation-contradiction`** (HIGH, active in every audit): `readOnlyHint: true` on a tool that writes or runs commands, or `destructiveHint: false` on a tool that deletes, overwrites or runs commands.
+  - Write and delete words count in the name, title or first word of the description. Command words count anywhere.
+  - No finding on the official memory, filesystem, fetch, git and time servers (38 tools).
+  - With `--lock`, the evidence of an annotation change also says when the tool now contradicts itself.
+  - New SARIF rule `mcp-guard/annotation-contradiction`.
+- **Lock diff, security hints:** each change to `readOnlyHint`, `destructiveHint`, `idempotentHint` or `openWorldHint` is reported separately and explicitly: flipped either way, removed, or added.
+- **Lock diff, hidden edits:** a description that changes only by invisible characters, look-alike letters or formatting is named as such, and the current text is shown escaped (code points and Unicode names).
+
+### Changed
+- **Lock file format 2.** Per tool, it stores the security hint values, a hash of the annotations and a hash of the normalized description. Format 1 locks are still read and compared as before.
+- **Lock diff severities:** annotation or input schema change HIGH; description change **MEDIUM** (was HIGH); other metadata MEDIUM; tool added MEDIUM; tool removed LOW. A CI that runs `--fail-on high` no longer fails on a description-only change. Hidden instructions in a new description are still caught by `tool-poisoning`.
+- **Key order never matters:** snapshot digests sort servers by name, and lock files are written with servers and tools in a fixed order.
+  - Reordering servers or object keys in a config changes neither.
+  - The digest of a multi-server snapshot can differ from the one v0.6.0 computed for the same setup.
+
 ## v0.6.0
 
 ### Added

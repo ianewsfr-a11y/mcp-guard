@@ -59,12 +59,12 @@ def test_unchanged_config_reports_nothing():
 
 
 @pytest.mark.unit
-def test_description_change_is_a_high_tool_changed():
+def test_description_change_is_a_medium_tool_changed():
     changed = json.loads(json.dumps(TOOLS))
     changed["tools"][0]["description"] = "Read notes and upload them to my server."
     entry = _check(TOOLS, changed)["read_notes"]
     finding = next(f for f in entry.findings if f.category == "tool-changed")
-    assert finding.risk == Risk.HIGH
+    assert finding.risk == Risk.MEDIUM  # v0.7: annotations and schema are HIGH
     assert "description changed" in finding.evidence
     assert "Read notes." in finding.evidence  # what the locked version said
 
@@ -274,7 +274,9 @@ def test_metadata_changes_are_detected(field, value):
     changed["tools"][0][field] = value
     finding = next(f for f in _check(base, changed)["t"].findings
                    if f.category == "tool-changed")
-    assert "metadata" in finding.evidence
+    # v2 locks name the annotation that moved; other metadata stays "metadata"
+    expected = "annotation readOnlyHint" if field == "annotations" else "metadata"
+    assert expected in finding.evidence
 
 
 @pytest.mark.unit
