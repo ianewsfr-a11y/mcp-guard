@@ -13,6 +13,7 @@ MAX_PAGES = 50
 MAX_TOOLS = 5_000
 MAX_SERVER_TEXT = 200
 MAX_CURSOR = 1_000
+MAX_INSTRUCTIONS = 20_000
 _CLIENT_INFO = {"name": "mcp-guard", "version": __version__}
 
 
@@ -62,17 +63,26 @@ class Capture(NamedTuple):
     resources: tuple[Any, ...] = ()
     prompts: tuple[Any, ...] = ()
     warnings: tuple[str, ...] = ()
+    instructions: str | None = None  # sent by the server at initialization
 
 
-def _handshake(transport: Transport) -> dict[str, Any] | None:
+def _initialize(transport: Transport) -> dict[str, Any]:
     init = transport.request("initialize", {
         "protocolVersion": PROTOCOL_VERSION,
         "capabilities": {},
         "clientInfo": _CLIENT_INFO,
     })
     transport.notify("notifications/initialized")
+    return init
+
+
+def _capabilities(init: dict[str, Any]) -> dict[str, Any] | None:
     capabilities = init.get("capabilities")
     return capabilities if isinstance(capabilities, dict) else None
+
+
+def _handshake(transport: Transport) -> dict[str, Any] | None:
+    return _capabilities(_initialize(transport))
 
 
 def _declares(capabilities: dict[str, Any] | None, name: str) -> bool:
@@ -115,7 +125,9 @@ def list_tools(transport: Transport) -> list[Any]:
 
 def capture(transport: Transport) -> Capture:
     """Tools, resources and prompts the server declares, in one session."""
-    capabilities = _handshake(transport)
+    init = _initialize(transport)
+    capabilities = _capabilities(init)
+    instructions = init.get("instructions")
     tools = _paged(transport, "tools/list", "tools") if _declares(capabilities, "tools") else []
     lists: dict[str, list[Any]] = {"resources": [], "prompts": []}
     warnings: list[str] = []
@@ -127,4 +139,6 @@ def capture(transport: Transport) -> Capture:
         except LiveError as exc:
             warnings.append(f"{key}/list: {exc}")
     return Capture(tuple(tools), tuple(lists["resources"]), tuple(lists["prompts"]),
-                   tuple(warnings))
+                   tuple(warnings),
+                   instructions[:MAX_INSTRUCTIONS]
+                   if isinstance(instructions, str) and instructions else None)

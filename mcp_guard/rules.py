@@ -131,8 +131,17 @@ BUILTIN_CHECKS: dict[str, str] = {
 }
 
 
-# Opt-in checks: listed in SARIF only when they report something, so that
-# outputs without the opt-in flag do not change.
+# Listed in SARIF only when they report something, so that reports without
+# such findings do not change: opt-in checks, and the poisoning of surfaces
+# other than tools (resources, prompts, server instructions).
+SURFACE_POISONING: dict[str, str] = {
+    "resource-poisoning": ("A resource's name, title, description, URI or MIME type hides "
+                           "instructions for the model."),
+    "prompt-poisoning": ("A prompt's name, title, description or argument descriptions hide "
+                         "instructions for the model."),
+    "server-instruction-poisoning": ("The instructions the server sends at initialization "
+                                     "hide instructions for the model."),
+}
 EXPERIMENTAL_CHECKS: dict[str, str] = {
     "agent-exfiltration-surface": (
         "Together, the active servers let an agent read private data, ingest untrusted "
@@ -178,7 +187,7 @@ class RuleSet(BaseModel):
         for rule in self.rules:
             if rule.category == category and rule.description:
                 return rule.description
-        known = {**BUILTIN_CHECKS, **EXPERIMENTAL_CHECKS}
+        known = {**BUILTIN_CHECKS, **EXPERIMENTAL_CHECKS, **SURFACE_POISONING}
         return known.get(category, category.replace("-", " ").capitalize())
 
 
@@ -212,11 +221,12 @@ class RulesFile(BaseModel):
         duplicates = sorted({c for c in categories if categories.count(c) > 1})
         if duplicates:
             raise ValueError(f"duplicate rule categories: {duplicates}")
-        reserved = sorted(set(categories) & (set(BUILTIN_CHECKS) | set(EXPERIMENTAL_CHECKS)))
+        reserved = sorted(set(categories) & (set(BUILTIN_CHECKS) | set(EXPERIMENTAL_CHECKS)
+                                             | set(SURFACE_POISONING)))
         if reserved:
             raise ValueError(f"reserved for built-in checks, pick another name: {reserved}")
         known = ({r.category for r in DEFAULT_RULES} | set(BUILTIN_CHECKS)
-                 | set(EXPERIMENTAL_CHECKS) | set(categories))
+                 | set(EXPERIMENTAL_CHECKS) | set(SURFACE_POISONING) | set(categories))
         unknown = sorted(set(self.disable) - known)
         if unknown:
             raise ValueError(f"unknown categories in `disable`: {unknown}")

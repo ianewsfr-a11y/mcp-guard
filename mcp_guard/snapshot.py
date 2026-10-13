@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from . import __version__
 from .models import ServerSpec, ToolSpec, label_of
-from .redact import stored_spec
+from .redact import stored_spec, stored_text
 
 SNAPSHOT_VERSION: Literal[1] = 1
 _VOLATILE = frozenset({"captured_at", "generator", "source"})
@@ -107,10 +107,16 @@ class ServerSnapshot(_Frozen):
     resources: tuple[ResourceSnapshot, ...] = ()
     prompts: tuple[PromptSnapshot, ...] = ()
     capture_warnings: tuple[str, ...] = ()
+    instructions: str | None = None  # from the initialize result (live only)
 
     @field_serializer("spec")
     def _redacted(self, spec: ServerSpec | None) -> dict[str, Any] | None:
         return stored_spec(spec) if spec is not None else None
+
+    @field_serializer("instructions")
+    def _stored_instructions(self, instructions: str | None) -> str | None:
+        """URLs in the instructions lose their credentials, as everywhere."""
+        return stored_text(instructions) if instructions is not None else None
 
     @property
     def disabled(self) -> bool:
@@ -140,7 +146,7 @@ class MCPSnapshot(_Frozen):
         """Stable serialization of the content (no timestamp, path or generator).
         Servers come from a JSON object, whose key order means nothing: they
         are sorted by name. Tools keep their order (they come from arrays)."""
-        data = self.model_dump(mode="json", exclude=set(_VOLATILE))
+        data = _without_empty_instructions(self.model_dump(mode="json", exclude=set(_VOLATILE)))
         data["servers"] = sorted(data["servers"], key=lambda server: server["name"])
         return _dumps(data)
 
@@ -151,11 +157,20 @@ class MCPSnapshot(_Frozen):
 
     def to_json(self) -> str:
         """Everything, including the volatile fields, with sorted keys."""
-        return json.dumps(self.model_dump(mode="json"), sort_keys=True, indent=2)
+        return json.dumps(_without_empty_instructions(self.model_dump(mode="json")),
+                          sort_keys=True, indent=2)
 
     @classmethod
     def from_json(cls, text: str) -> MCPSnapshot:
         return cls.model_validate_json(text)
+
+
+def _without_empty_instructions(data: dict[str, Any]) -> dict[str, Any]:
+    """Servers without instructions serialize as before the field existed."""
+    data["servers"] = [{k: v for k, v in server.items()
+                        if k != "instructions" or v is not None}
+                       for server in data["servers"]]
+    return data
 
 
 def _dumps(value: Any) -> str:

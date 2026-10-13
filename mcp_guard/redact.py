@@ -137,6 +137,11 @@ def _stored_url(url: str) -> str:
     return urlunsplit((parts.scheme, netloc, parts.path, query, ""))
 
 
+def stored_text(value: str) -> str:
+    """Free text as stored: every URL in it loses userinfo and secret values."""
+    return _stored_text(value)
+
+
 def _stored_text(value: str) -> str:
     if not _HAS_URL.search(value):
         return value
