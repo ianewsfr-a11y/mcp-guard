@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .analysis import sort_entries
 from .analyzer import analyze
 from .collector import Outcome, collect
+from .combined import CombinedResult, evaluate
 from .lock import LockFile, compare, fingerprint, read_lock
 from .models import AuditEntry
 from .rules import RuleSet
@@ -24,6 +26,7 @@ class AuditRun:
     ruleset: RuleSet
     lock: LockFile | None = None
     lock_path: Path | None = None
+    combined: CombinedResult | None = None  # set with --combined
 
 
 def audit_snapshot(snap: MCPSnapshot, ruleset: RuleSet, lock_path: Path | None = None,
@@ -41,13 +44,17 @@ def audit_snapshot(snap: MCPSnapshot, ruleset: RuleSet, lock_path: Path | None =
 
 def run_audit(data: Any, source: str, ruleset: RuleSet,
               live: Mapping[str, Outcome] | None = None,
-              lock_path: Path | None = None) -> AuditRun:
-    """Audit `data` (with live results if given). Raises ConfigFormatError on
-    unreadable input or lock."""
+              lock_path: Path | None = None, combined: bool = False) -> AuditRun:
+    """Audit `data` (with live results if given). `combined` adds the
+    experimental config-level rule. Raises ConfigFormatError on unreadable
+    input or lock."""
     snap = collect(data, source, live)
     entries, locked = audit_snapshot(snap, ruleset, lock_path)
+    result = evaluate(snap, entries, ruleset) if combined else None
+    if result is not None and result.entry is not None:
+        entries = sort_entries([*entries, result.entry], ruleset)
     return AuditRun(source=source, snapshot=snap, entries=entries, ruleset=ruleset,
-                    lock=locked, lock_path=lock_path)
+                    lock=locked, lock_path=lock_path, combined=result)
 
 
 Loader = Callable[[], AuditRun]

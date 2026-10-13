@@ -5,6 +5,8 @@
 # rules:             new categories, or a built-in category redefined by name
 # exceptions:        keyword -> adjacent context words that make it harmless
 # ignore:            server/tool names (or "server > tool") to leave out of the report
+# capabilities:      adjust the tags used by `inspect --combined` (experimental):
+#                    reads_private, ingests_untrusted, sends_external
 
 extends: default
 
@@ -27,3 +29,10 @@ exceptions:            # keyword -> adjacent words that make it harmless
 
 ignore:
   - read_user_file     # reviewed on 2026-10-13, read-only on a sandboxed folder
+
+capabilities:        # for `inspect --combined`; tool alone matches it on any server
+  - server: notes
+    tool: export_notes
+    remove: [sends_external]   # writes to a local folder only, reviewed
+  - server: crm
+    add: [reads_private]       # every crm tool sees customer data

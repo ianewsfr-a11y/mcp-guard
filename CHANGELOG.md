@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **`inspect --combined` (experimental)**: config-level rule `agent-exfiltration-surface`.
+  - **Trigger:** together, the active servers let an agent read private data, ingest untrusted content and send data out.
+  - **Finding:** one per config. MEDIUM, or HIGH with `broad-filesystem-scope` on a server that reads private data. It lists the tools behind each capability and the cut point.
+  - **Id:** stable per set of servers involved.
+  - **Statuses:** without a tool list the rule reports "not evaluated". When servers were not reached or tools could not be parsed, it reports "partial" instead of "no finding". Neither changes the exit code, and both are SARIF notifications.
+  - **Outputs:** table row of type `config`, JSON details with each tag's provenance, and in SARIF a location on the servers key with related locations.
+- **Capability tags** (`reads_private`, `ingests_untrusted`, `sends_external`), separate from risk categories.
+  - **Sources:** keywords (shell tools count as reader and outbound channel), the MCP `openWorldHint` annotation (adds `ingests_untrusted` only, never removes a tag), and a new `capabilities` section in `--rules` to add or remove tags per tool or server (`remove` wins, traced in JSON).
+- Without `--combined`, this rule changes no output: table, JSON and SARIF stay as without it.
 - **`annotation-contradiction`** (HIGH, active in every audit): `readOnlyHint: true` on a tool that writes or runs commands, or `destructiveHint: false` on a tool that deletes, overwrites or runs commands.
   - Write and delete words count in the name, title or first word of the description. Command words count anywhere.
   - No finding on the official memory, filesystem, fetch, git and time servers (38 tools).

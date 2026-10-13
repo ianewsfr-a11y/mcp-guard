@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
+from .capabilities import CAPABILITIES, Capability, TaggedTool
+from .combined import MAX_LISTED, CombinedResult
+from .combined import RULE as COMBINED_RULE
 from .injection import ScenarioResult
 from .models import AuditEntry, Risk
 from .payloads import CANARY, Payload
@@ -69,14 +73,82 @@ def _poisoning_alert(entries: tuple[AuditEntry, ...]) -> None:
         title="TOOL POISONING DETECTED", border_style="bold red"))
 
 
-def entries_to_json(entries: tuple[AuditEntry, ...]) -> str:
-    payload = [
+def _tagged(tool: TaggedTool, capability: Capability) -> dict[str, Any]:
+    tag = tool.tag(capability)
+    return {"server": tool.server, "tool": tool.name,
+            "source": tag.source if tag else None, "trigger": tag.trigger if tag else None}
+
+
+def combined_details(result: CombinedResult) -> dict[str, Any]:
+    """The --combined result, with each tool's capability provenance."""
+    return {
+        "rule": COMBINED_RULE, "status": result.status, "reason": result.reason,
+        "servers": list(result.servers), "file_tools": result.file_tools,
+        "unevaluated": list(result.unevaluated), "malformed": result.malformed,
+        "cut_point": result.cut_point,
+        "surface": {c: [_tagged(t, c) for t in result.surface.get(c, ())]
+                    for c in CAPABILITIES},
+        "suppressed_by_rules": [{"server": t.server, "tool": t.name,
+                                 "capabilities": list(t.suppressed)}
+                                for t in result.suppressed],
+    }
+
+
+def entries_to_json(entries: tuple[AuditEntry, ...],
+                    combined: CombinedResult | None = None) -> str:
+    """Without `combined`, the output is exactly that of v0.6."""
+    payload: list[dict[str, Any]] = [
         {"kind": e.kind, "name": e.name, "server": e.server, "risk": e.risk.name,
          "findings": [{"id": f.id, "category": f.category, "risk": f.risk.name,
                        "evidence": f.evidence} for f in e.findings]}
         for e in entries
     ]
+    if combined is not None:
+        details = combined_details(combined)
+        config = [p for p in payload if p["kind"] == "config"]
+        if config:
+            config[0]["combined"] = details
+        else:  # no finding: same shape as any item without findings, plus the status
+            payload.append({"kind": "config", "name": combined.source, "server": None,
+                            "risk": Risk.LOW.name, "findings": [], "combined": details})
     return json.dumps(payload, indent=2)
+
+
+_STATUS_LABELS = {"clear": ("no finding", "dim"), "partial": ("PARTIAL, no finding", "yellow"),
+                  "not-evaluated": ("NOT EVALUATED", "yellow"), "disabled": ("disabled", "dim")}
+
+
+def _tool_list(tools: tuple[TaggedTool, ...], capability: Capability) -> str:
+    shown = []
+    for tool in tools[:MAX_LISTED]:
+        tag = tool.tag(capability)
+        trigger = escape(printable(tag.trigger, 80)) if tag else ""
+        shown.append(f"{escape(printable(tool.label, 80))} [dim]({trigger})[/]")
+    more = len(tools) - MAX_LISTED
+    return ", ".join(shown) + (f" and {more} more" if more > 0 else "")
+
+
+def render_combined(result: CombinedResult) -> None:
+    title = f"{COMBINED_RULE} (experimental)"
+    if result.status != "triggered":
+        label, style = _STATUS_LABELS[result.status]
+        console.print(f"\n[{style}]{title}: {label}[/] "
+                      f"[dim]({escape(printable(result.reason, 300))})[/]")
+        return
+    lines = []
+    for capability in CAPABILITIES:
+        marker = " [bold]<- cut point[/]" if capability == result.cut_point else ""
+        lines.append(f"[bold]{capability}[/]{marker}: "
+                     f"{_tool_list(result.surface[capability], capability)}")
+    if result.unevaluated:
+        lines.append("[yellow]Not evaluated (no tool list): "
+                     f"{escape(printable(', '.join(result.unevaluated[:MAX_LISTED]), 300))}[/]")
+    if result.malformed:
+        lines.append(f"[yellow]{result.malformed} malformed tool(s) could not be tagged[/]")
+    lines.append("An injected instruction can read private data, pick up attacker content "
+                 "and send it out through these tools. Remove the cut-point tools or "
+                 "require approval for each call.")
+    console.print(Panel("\n".join(lines), title=title, border_style="yellow"))
 
 
 def render_payloads(payloads: tuple[Payload, ...], server_script: str) -> None:

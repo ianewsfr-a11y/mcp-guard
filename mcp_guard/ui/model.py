@@ -102,7 +102,7 @@ def build_groups(run: AuditRun) -> list[Group]:
     pools: dict[str | None, list[ToolSnapshot]] = {}
     for server in run.snapshot.servers:
         groups[server.name] = Group(title=server.name, server=None)
-    for entry in run.entries:
+    for entry in (e for e in run.entries if e.kind != "config"):
         key = entry.name if entry.kind == "server" else entry.server
         group = groups.setdefault(key, Group(title=key or STATIC_TOOLS, server=None))
         if entry.kind == "server":

@@ -122,7 +122,7 @@ def _reload_live(snap: MCPSnapshot, confirmed: dict[str, ServerSpec],
 
 def _collect(config_file: Path | None, servers: tuple[str, ...], rules_file: Path | None,
              live: bool, assume_yes: bool, timeout: float,
-             lock_file: Path | None) -> tuple[AuditRun, Loader]:
+             lock_file: Path | None, combined: bool = False) -> tuple[AuditRun, Loader]:
     """The first audit run, and a loader that repeats it (for `ui` refresh)."""
     data, source = _load_input(config_file, servers)
     try:
@@ -137,10 +137,10 @@ def _collect(config_file: Path | None, servers: tuple[str, ...], rules_file: Pat
         fresh = load_config(config_file) if config_file else data
         fresh_live = (_reload_live(collect(fresh, source), confirmed, timeout)
                       if live else None)
-        return run_audit(fresh, source, ruleset, fresh_live, lock_file)
+        return run_audit(fresh, source, ruleset, fresh_live, lock_file, combined)
 
     try:
-        return run_audit(data, source, ruleset, results, lock_file), reload
+        return run_audit(data, source, ruleset, results, lock_file, combined), reload
     except ConfigFormatError as exc:
         raise InputError(str(exc)) from exc
 
@@ -180,24 +180,31 @@ def _emit(text: str, output: Path | None) -> None:
               help="Compare with a lock file from `mcp-guard lock` (rug-pull check).")
 @click.option("--fail-on", type=_FAIL_CHOICES, default="none", show_default=True,
               help="Exit with code 1 if any item reaches this risk level (for CI).")
+@click.option("--combined", is_flag=True,
+              help="Experimental: also check what all active servers allow together "
+                   "(private data + untrusted content + outbound channel). Needs --live "
+                   "or a tools list.")
 def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_json: bool,
             output: Path | None, rules_file: Path | None, live: bool, assume_yes: bool,
-            timeout: float, lock_file: Path | None, fail_on: str) -> None:
+            timeout: float, lock_file: Path | None, fail_on: str, combined: bool) -> None:
     """Audit an MCP client config or a tools list (JSON, JSONC or YAML), or
     servers given with --server."""
     fmt = "json" if as_json else fmt.lower()
-    run, _ = _collect(config_file, servers, rules_file, live, assume_yes, timeout, lock_file)
+    run, _ = _collect(config_file, servers, rules_file, live, assume_yes, timeout, lock_file,
+                      combined)
     entries, ruleset = run.entries, run.ruleset
 
     if fmt == "table":
         renderer.render_table(entries, run.source,
                               run.snapshot.format if config_file else "--server")
+        if run.combined is not None:
+            renderer.render_combined(run.combined)
     elif fmt == "json":
-        _emit(renderer.entries_to_json(entries), output)
+        _emit(renderer.entries_to_json(entries, run.combined), output)
     else:
         text = config_file.read_text(encoding="utf-8-sig") if config_file else ""
         uri = _artifact_uri(config_file) if config_file else SOURCE_LABEL
-        report = to_sarif(entries, ruleset, uri, text)
+        report = to_sarif(entries, ruleset, uri, text, run.combined)
         _emit(json.dumps(report, indent=2), output)
 
     if fail_on != "none" and any(e.risk >= Risk[fail_on.upper()] for e in entries):
