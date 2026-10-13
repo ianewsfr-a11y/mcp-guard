@@ -34,7 +34,8 @@ from .rules import DEFAULT_RULESET, load_ruleset
 from .sarif import to_sarif
 from .snapshot import MCPSnapshot
 from .text import printable
-from .ui import run_ui
+from .ui import UIUnavailable, run_ui
+from .ui import ensure_available as ensure_ui  # checked before any work in `ui`
 
 _FAIL_CHOICES = click.Choice(["none", "low", "medium", "high", "critical"],
                              case_sensitive=False)
@@ -302,6 +303,10 @@ def ui(config_file: Path | None, servers: tuple[str, ...], rules_file: Path | No
     Keys: arrows to move, Tab to switch pane, R refresh, L lock report,
     T light/dark, Q quit.
     """
+    try:
+        ensure_ui()  # before any work: --live must not start servers for nothing
+    except UIUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
     run, reload = _collect(config_file, servers, rules_file, live, assume_yes, timeout,
                            lock_file)
     run_ui(run, reload)
