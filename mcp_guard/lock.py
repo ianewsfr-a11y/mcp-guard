@@ -16,7 +16,7 @@ hints (readOnlyHint, destructiveHint, idempotentHint, openWorldHint: booleans,
 not secrets), a separate hash of the annotations, and a hash of the
 description's "skeleton" (invisible characters removed, look-alike letters
 mapped), so a change made only of such characters is named as such.
-Severities: annotations or input schema HIGH, description or other metadata
+Severities: description, annotations or input schema HIGH, other metadata
 MEDIUM, added tool MEDIUM, removed tool LOW. Version 1 locks are still read;
 regenerate them to get the per-annotation detail.
 """
@@ -37,6 +37,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from . import __version__
 from .analysis import sort_entries, with_findings
+from .analyzer import analyze
 from .annotations import CATEGORY as CONTRADICTION
 from .annotations import NON_BOOLEAN, SECURITY_HINTS, security_hints
 from .collector import Outcome, from_discovered
@@ -231,6 +232,8 @@ def read_lock(path: Path) -> LockFile:
 # --- comparison -----------------------------------------------------------------
 
 Changes = dict[tuple[str, str], tuple[Finding, ...]]
+LOCK_CATEGORIES = frozenset({"tool-changed", "server-changed", "tool-added", "server-added",
+                             "tool-removed", "server-removed"})
 
 
 def _add(changes: Changes, key: tuple[str, str], finding: Finding) -> None:
@@ -283,9 +286,9 @@ def _hidden_characters(text: str) -> str:
 def _description_change(old: ToolPrint, new: ToolPrint, text: str | None) -> Finding:
     if old.skeleton and old.skeleton == new.skeleton:
         detail = _hidden_characters(text) if text is not None else "see the current text"
-        return _changed(Risk.MEDIUM, "description changed only by invisible characters, "
+        return _changed(Risk.HIGH, "description changed only by invisible characters, "
                                      f"look-alike letters or formatting: {detail}")
-    return _changed(Risk.MEDIUM, "description changed; locked description began: "
+    return _changed(Risk.HIGH, "description changed; locked description began: "
                                  f"'{printable(old.preview, _PREVIEW)}'")
 
 
@@ -400,3 +403,17 @@ def compare(locked: LockFile, current: LockFile, entries: tuple[AuditEntry, ...]
                                      category="tool-removed", risk=Risk.LOW,
                                      evidence="in the lock file but no longer present"),))))
     return sort_entries(merged, ruleset)
+
+
+def changes_since(locked: LockFile, snap: MCPSnapshot, ruleset: RuleSet,
+                  ) -> list[tuple[str, Finding]]:
+    """Every lock difference between `locked` and the current snapshot, as
+    (item label, finding). Compared in the lock's own format version."""
+    current = fingerprint(snap, salt=locked.salt, version=locked.version)
+    entries = compare(locked, current, analyze(snap, ruleset), ruleset, None, snap)
+    return [(e.label, f) for e in entries for f in e.findings if f.category in LOCK_CATEGORIES]
+
+
+def migrated(locked: LockFile, snap: MCPSnapshot) -> LockFile:
+    """The same setup, fingerprinted in the current format, keeping the salt."""
+    return fingerprint(snap, salt=locked.salt)

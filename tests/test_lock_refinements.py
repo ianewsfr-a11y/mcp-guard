@@ -175,7 +175,7 @@ def test_severity_of_each_kind_of_change(tmp_path):
         (Risk.HIGH, "input schema changed")]
     described = {**TOOL, "description": "Read and summarize the user's notes."}
     ((risk, evidence),) = _changes(_findings([TOOL], [described], tmp_path))
-    assert risk == Risk.MEDIUM and evidence.startswith("description changed; locked")
+    assert risk == Risk.HIGH and evidence.startswith("description changed; locked")
     titled = {**TOOL, "title": "Notes"}
     assert _changes(_findings([TOOL], [titled], tmp_path)) == [
         (Risk.MEDIUM, "metadata changed (title, output schema...)")]
@@ -195,7 +195,7 @@ def test_severity_of_each_kind_of_change(tmp_path):
 def test_hidden_character_edits_are_shown_escaped(tmp_path, new_text, expected):
     ((risk, evidence),) = _changes(_findings([TOOL], [{**TOOL, "description": new_text}],
                                              tmp_path))
-    assert risk == Risk.MEDIUM
+    assert risk == Risk.HIGH
     assert evidence.startswith("description changed only by invisible characters, "
                                "look-alike letters or formatting")
     assert expected in evidence and "(escaped)" in evidence
@@ -214,7 +214,7 @@ def test_removing_a_hidden_character_is_named_too(tmp_path):
 def test_formatting_only_changes_are_not_called_invisible(tmp_path, new_text):
     ((risk, evidence),) = _changes(_findings([TOOL], [{**TOOL, "description": new_text}],
                                              tmp_path))
-    assert risk == Risk.MEDIUM
+    assert risk == Risk.HIGH
     assert "difference is whitespace, HTML entities, quotes" in evidence
 
 
@@ -325,3 +325,85 @@ def test_look_alike_scan_is_bounded():
     from mcp_guard.poisoning import MAX_TEXT_CHARS, look_alikes
     text = chr(0x0430) * (MAX_TEXT_CHARS + 1000)
     assert len(look_alikes(text)) == MAX_TEXT_CHARS
+
+
+# --- PR #15 adjustments: official servers, v1 migration ----------------------------------
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.unit
+def test_no_contradiction_on_the_official_reference_servers():
+    """38 tools of the official memory, filesystem, fetch, git and time
+    servers, all annotated: none may be flagged (they are correct)."""
+    official = json.loads((FIXTURES / "official_tools.json").read_text(encoding="utf-8"))
+    names = list(official["servers"])
+    data = {"mcpServers": {n: {"command": "npx", "args": [n]} for n in names}}
+    snap = collect(data, "official", official["servers"])
+    assert sum(len(s.tools) for s in snap.servers) == 38
+    assert sum(1 for t in snap.all_tools() if t.annotations) == 38
+    flagged = [e.label for e in analyze(snap) for f in e.findings
+               if f.category == "annotation-contradiction"]
+    assert flagged == []
+
+
+def _v1_copy(tmp_path):
+    for name in ("mcp.json", "mcp-guard.lock"):
+        (tmp_path / name).write_bytes((FIXTURES / "lock_v1" / name).read_bytes())
+    return tmp_path / "mcp.json", tmp_path / "mcp-guard.lock"
+
+
+def _lock_diffs(config, lock):
+    result = CliRunner().invoke(cli, ["inspect", str(config), "--lock", str(lock),
+                                      "--format", "json"])
+    assert result.exit_code == 0, result.output
+    return [f["category"] for e in json.loads(result.output) for f in e["findings"]
+            if f["category"].endswith(("-changed", "-added", "-removed"))]
+
+
+@pytest.mark.integration
+def test_a_v0_6_lock_on_reordered_servers_shows_no_false_change(tmp_path):
+    config, lock = _v1_copy(tmp_path)
+    original = json.loads(lock.read_text(encoding="utf-8"))
+    assert original["version"] == 1 and original["generator"] == "mcp-guard 0.6.0"
+    assert list(original["servers"]) == ["zeta", "alpha", "remote"]  # unsorted, as v0.6 wrote
+    data = json.loads(config.read_text(encoding="utf-8"))
+    config.write_text(json.dumps(_reversed_keys(data)), encoding="utf-8")  # servers reordered
+    assert _lock_diffs(config, lock) == []
+
+
+@pytest.mark.integration
+def test_lock_update_migrates_a_v1_lock_to_v2(tmp_path):
+    config, lock = _v1_copy(tmp_path)
+    salt = json.loads(lock.read_text(encoding="utf-8"))["salt"]
+    result = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock), "--update"])
+    assert result.exit_code == 0, result.output
+    assert "from format 1 to 2: no change since it was written" in " ".join(result.output.split())
+    migrated = json.loads(lock.read_text(encoding="utf-8"))
+    assert (migrated["version"], migrated["salt"]) == (2, salt)
+    assert list(migrated["servers"]) == ["alpha", "remote", "zeta"]
+    hints = {t["name"]: t["hints"] for t in migrated["tools"]}
+    assert hints["read_notes"] == {"readOnlyHint": True, "destructiveHint": False}
+    assert _lock_diffs(config, lock) == []
+    again = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock), "--update"])
+    assert again.exit_code == 0 and "from format 2 to 2" in " ".join(again.output.split())
+
+
+@pytest.mark.integration
+def test_lock_update_refuses_to_approve_a_change(tmp_path):
+    config, lock = _v1_copy(tmp_path)
+    before = lock.read_bytes()
+    data = json.loads(config.read_text(encoding="utf-8"))
+    data["tools"][1]["annotations"]["destructiveHint"] = False  # a rug pull
+    config.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock), "--update"])
+    assert result.exit_code == 2
+    assert "1 change(s) since" in result.output and "delete_note: tool-changed" in result.output
+    assert lock.read_bytes() == before  # untouched
+    missing = CliRunner().invoke(cli, ["lock", str(config), "-o", str(tmp_path / "no.lock"),
+                                       "--update"])
+    assert missing.exit_code == 2 and "needs an existing lock file" in missing.output
+    (tmp_path / "bad.lock").write_text("{", encoding="utf-8")
+    broken = CliRunner().invoke(cli, ["lock", str(config), "-o", str(tmp_path / "bad.lock"),
+                                      "--update"])
+    assert broken.exit_code == 2 and "Cannot read lock file" in broken.output
