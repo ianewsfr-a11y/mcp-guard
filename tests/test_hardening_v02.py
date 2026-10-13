@@ -21,7 +21,7 @@ from mcp_guard.live import (
     list_tools,
     resolve_executable,
 )
-from mcp_guard.live import stdio as stdio_module
+from mcp_guard.live import process as process_module
 from mcp_guard.live.protocol import MAX_TOOLS, result_of
 from mcp_guard.models import ServerSpec
 from mcp_guard.sarif import locate, to_sarif
@@ -155,7 +155,7 @@ def test_stdio_output_cap(monkeypatch, tmp_path):
     script.write_text("import sys\nsys.stdin.readline()\n"
                       "sys.stdout.write('x' * 5000 + '\\n'); sys.stdout.flush()\n"
                       "import time; time.sleep(30)\n", encoding="utf-8")
-    monkeypatch.setattr(stdio_module, "MAX_OUTPUT_BYTES", 1000)
+    monkeypatch.setattr(process_module, "MAX_OUTPUT_BYTES", 1000)
     with pytest.raises(LiveError, match="exceeded"):
         fetch_tools(ServerSpec(command=sys.executable, args=[str(script)]), timeout=10)
 

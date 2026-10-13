@@ -3,6 +3,7 @@
 # extends: default   keep the built-in rules (use `none` to start from scratch)
 # disable:           built-in or custom categories to turn off
 # rules:             new categories, or a built-in category redefined by name
+# exceptions:        keyword -> adjacent context words that make it harmless
 # ignore:            server/tool names (or "server > tool") to leave out of the report
 
 extends: default
@@ -20,6 +21,9 @@ rules:
     risk: HIGH
     description: The tool can read personal customer data.
     keywords: [customer, customers, crm, gdpr, pii]
+
+exceptions:            # keyword -> adjacent words that make it harmless
+  create: [ticket, tickets]
 
 ignore:
   - read_user_file     # reviewed on 2026-10-13, read-only on a sandboxed folder

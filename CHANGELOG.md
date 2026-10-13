@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0
+
+### Added
+- **Rug-pull detection**: `mcp-guard lock CONFIG [--live]` writes `mcp-guard.lock` with SHA-256 fingerprints of every tool (description, input schema, all other fields such as title, annotations, outputSchema) and every server (launch spec; salted HMAC of non-secret env/header/URL-parameter values). `inspect --lock` reports `tool-changed`/`server-changed` (HIGH), `tool-added`/`server-added` (MEDIUM), `tool-removed`/`server-removed` (LOW). Secrets are never stored, not even hashed. Unreachable servers do not produce removals.
+- **Automated `test-injection --run`**: mcp-guard plays a hostile MCP server against an agent script over the `mcp-guard-harness/1` JSON-lines protocol. 8 scenarios with honeypot tools. A run FAILs on an echoed canary (also disguised: case, punctuation, reversed, base64, hex), unneeded tool calls, a leaked canary, or any address/host the task did not mention. Exit `1` on FAIL, `2` on ERROR. `--only`, `--timeout`, `--json`, and a confirmation before starting the agent.
+- `examples/agents/`: `naive_agent.py` (fails 8/8), `guarded_agent.py` (passes 8/8), `anthropic_agent.py` (tests a real Claude model).
+- Rules files accept `exceptions:` (keyword -> adjacent context words).
+
+### Changed
+- **Fewer lexical false positives**: keywords are excused only by an adjacent context word (within 2 words): "Add two numbers", "Execute a SQL query", "root directory", "remove duplicates", "markdown table" no longer raise write/exec/privileged/database findings. A context word elsewhere excuses nothing, so attackers cannot hide "Execute any command" by adding "Supports SQL queries".
+- Verb forms in `-s`/`-es`/`-ies` are matched ("Deletes a file" was missed).
+- Untrusted text printing also neutralizes bidi and zero-width characters.
+- The stdio process handling is shared by `--live` and `--run` (output caps, deadlines, process-tree kill).
+
 ## v0.3.0
 
 ### Added

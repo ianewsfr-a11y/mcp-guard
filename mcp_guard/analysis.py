@@ -42,9 +42,8 @@ def _schema_property_names(schema: dict[str, Any]) -> list[str]:
 
 def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
                  server: str | None = None) -> AuditEntry:
-    tokens = tokenize(tool.name, tool.description,
-                      *_schema_property_names(tool.inputSchema))
-    findings = (*detect_poisoning(tool), *ruleset.match(tokens))
+    texts = (tool.description, *_schema_property_names(tool.inputSchema))
+    findings = (*detect_poisoning(tool), *ruleset.match(*texts, name=tool.name))
     return AuditEntry(kind="tool", name=tool.name, server=server,
                       findings=ruleset.keep(findings))
 
@@ -60,6 +59,15 @@ def _redact(value: str) -> str:
 
 def _is_secret_key(key: str) -> bool:
     return bool(tokenize(key) & _SECRET_KEY_TOKENS)
+
+
+def is_secret_key(key: str) -> bool:
+    """Whether an env/header/query name looks like it holds a credential."""
+    return _is_secret_key(key)
+
+
+def strip_url_credentials(value: str) -> str:
+    return _URL_CREDENTIALS.sub(lambda m: m.group(1) + "<redacted>@", value)
 
 
 def _is_literal(value: str) -> bool:
@@ -171,7 +179,7 @@ def _launch_terms(server: ServerSpec) -> list[str]:
 def analyze_server(name: str, server: ServerSpec,
                    ruleset: RuleSet = DEFAULT_RULESET) -> AuditEntry:
     findings = (
-        *ruleset.match(tokenize(*_launch_terms(server))),
+        *ruleset.match(*_launch_terms(server)),
         *_secret_findings(server),
         *_transport_findings(server),
     )
@@ -206,6 +214,17 @@ def audit_tool(index: int, raw: Any, ruleset: RuleSet = DEFAULT_RULESET,
         return analyze_tool(ToolSpec.model_validate(raw), ruleset, server)
     except ValidationError as exc:
         return malformed("tool", str(fallback or f"tools[{index}]"), exc, server)
+
+
+def with_findings(entries: tuple[AuditEntry, ...],
+                  extra: dict[tuple[str, str], tuple[Finding, ...]],
+                  ruleset: RuleSet) -> tuple[AuditEntry, ...]:
+    """Add findings to existing entries, keyed by (kind, label)."""
+    return tuple(
+        e.model_copy(update={"findings": ruleset.keep(e.findings + extra[(e.kind, e.label)])})
+        if (e.kind, e.label) in extra else e
+        for e in entries
+    )
 
 
 def sort_entries(entries: list[AuditEntry], ruleset: RuleSet) -> tuple[AuditEntry, ...]:

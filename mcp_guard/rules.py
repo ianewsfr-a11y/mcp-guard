@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from .context import DEFAULT_EXCEPTIONS, effective_tokens
 from .models import ConfigFormatError, Finding, Risk
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -116,8 +117,14 @@ BUILTIN_CHECKS: dict[str, str] = {
     "insecure-transport": "A remote server is reached over plain HTTP.",
     "malformed-entry": "The entry could not be parsed and must be audited manually.",
     "live-discovery-failed": "Live discovery of the server's tools failed.",
+    "tool-changed": ("The tool's description or input schema differs from the lock file "
+                     "(possible rug pull)."),
+    "server-changed": "The server's launch command, arguments or URL differ from the lock file.",
+    "tool-added": "The tool is not in the lock file.",
+    "server-added": "The server is not in the lock file.",
+    "tool-removed": "The tool is in the lock file but no longer present.",
+    "server-removed": "The server is in the lock file but no longer present.",
 }
-
 
 
 class RuleSet(BaseModel):
@@ -128,12 +135,21 @@ class RuleSet(BaseModel):
     rules: tuple[Rule, ...] = DEFAULT_RULES
     ignore: frozenset[str] = frozenset()
     disabled: frozenset[str] = frozenset()
+    exceptions: dict[str, frozenset[str]] = Field(
+        default_factory=lambda: dict(DEFAULT_EXCEPTIONS))
 
     def keep(self, findings: tuple[Finding, ...]) -> tuple[Finding, ...]:
         """Drop findings of disabled categories (incl. dedicated checks)."""
         return tuple(f for f in findings if f.category not in self.disabled)
 
-    def match(self, tokens: frozenset[str]) -> tuple[Finding, ...]:
+    def vocabulary(self) -> frozenset[str]:
+        return frozenset().union(*(r.keywords | r.requires for r in self.rules))
+
+    def match(self, *texts: str, name: str = "") -> tuple[Finding, ...]:
+        """Findings for texts (description, parameter names...) and a tool
+        name, matched word by word with their neighbors so that contextual
+        exceptions stay local."""
+        tokens = effective_tokens(texts, self.exceptions, self.vocabulary(), name)
         findings = []
         for rule in self.rules:
             hits = rule.keywords & tokens
@@ -161,6 +177,16 @@ class RulesFile(BaseModel):
     disable: list[str] = Field(default_factory=list)
     rules: list[Rule] = Field(default_factory=list)
     ignore: list[str] = Field(default_factory=list)
+    exceptions: dict[str, list[str]] = Field(default_factory=dict)
+
+    @field_validator("exceptions")
+    @classmethod
+    def _exception_words(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        words = [w.lower() for k, ctx in value.items() for w in [k, *ctx]]
+        multi = sorted({w for w in words if tokenize(w) != {w}})
+        if multi:
+            raise ValueError(f"exception keywords and contexts must be single words: {multi}")
+        return {k.lower(): [c.lower() for c in ctx] for k, ctx in value.items()}
 
     @model_validator(mode="after")
     def _consistent(self) -> RulesFile:
@@ -182,8 +208,11 @@ class RulesFile(BaseModel):
         overridden = {r.category for r in self.rules} | set(self.disable)
         kept = tuple(r for r in base if r.category not in overridden)
         custom = tuple(r for r in self.rules if r.category not in self.disable)
+        exceptions = dict(DEFAULT_EXCEPTIONS) if self.extends == "default" else {}
+        for keyword, contexts in self.exceptions.items():
+            exceptions[keyword] = exceptions.get(keyword, frozenset()) | frozenset(contexts)
         return RuleSet(rules=kept + custom, ignore=frozenset(self.ignore),
-                       disabled=frozenset(self.disable))
+                       disabled=frozenset(self.disable), exceptions=exceptions)
 
 
 def load_ruleset(path: Path) -> RuleSet:
