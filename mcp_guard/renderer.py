@@ -1,4 +1,5 @@
-"""Terminal (Rich) and JSON rendering."""
+"""Terminal (Rich) and JSON rendering: audits, the --combined rule, snapshot
+diffs and injection runs."""
 
 from __future__ import annotations
 
@@ -13,11 +14,12 @@ from rich.table import Table
 from .capabilities import CAPABILITIES, Capability, TaggedTool
 from .combined import MAX_LISTED, CombinedResult
 from .combined import RULE as COMBINED_RULE
+from .diff import CombinedDiff, FieldChange, ItemDiff, SnapshotDiff
 from .injection import ScenarioResult
 from .models import AuditEntry, Risk
 from .payloads import CANARY, Payload
 from .poisoning import CATEGORY as POISONING
-from .text import printable
+from .text import printable, visible
 
 console = Console()
 
@@ -192,3 +194,151 @@ def render_injection_results(results: list[ScenarioResult], target: str) -> None
     style = "bold green" if failed == 0 and errors == 0 else "bold red"
     console.print(f"\n[{style}]Resisted {passed}/{len(results)} scenario(s)[/]"
                   f"  compromised {failed}  errors {errors}")
+
+
+# --- snapshot diff ----------------------------------------------------------------
+
+_CHANGE_STYLES = {"added": ("+", "green"), "removed": ("-", "red"), "changed": ("~", "yellow")}
+_MAX_PATHS_SHOWN = 8
+
+
+def diff_to_json(diff: SnapshotDiff) -> str:
+    """Structured diff for CI or other tools (format `mcp-guard-diff/1`)."""
+    payload = diff.model_dump(mode="json")
+    payload.update({"identical": diff.identical, "changed": diff.changed,
+                    "unclassified": diff.unclassified, "counts": diff.counts()})
+    for item, data in zip(diff.items, payload["items"]):
+        data.update({"label": item.label, "rug_pull": item.rug_pull})
+    if diff.combined is not None:
+        payload["combined"]["changed"] = diff.combined.changed
+    return json.dumps(payload, indent=2)
+
+
+def _short(value: Any, limit: int = 120) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    return escape(printable(text, limit))
+
+
+def _path_lines(change: FieldChange) -> list[str]:
+    lines = []
+    for path in change.paths[:_MAX_PATHS_SHOWN]:
+        sign, style = _CHANGE_STYLES[path.op]
+        if path.op == "changed":
+            detail = f"{_short(path.old, 60)} -> {_short(path.new, 60)}"
+        else:
+            detail = _short(path.new if path.op == "added" else path.old, 80)
+        lines.append(f"[{style}]{sign} {escape(printable(path.path, 80))}[/]: {detail}")
+    hidden = len(change.paths) - _MAX_PATHS_SHOWN
+    if hidden > 0 or change.truncated:
+        lines.append(f"[dim]... and {max(hidden, 0)} more path change(s)"
+                     f"{', truncated' if change.truncated else ''}[/]")
+    return lines
+
+
+_WINDOW = 300
+
+
+def _text_window(old: str, new: str) -> tuple[str, str]:
+    """Both texts from a little before their first difference, so an edit
+    after the first 300 characters is still visible."""
+    start = next((i for i, (a, b) in enumerate(zip(old, new)) if a != b),
+                 min(len(old), len(new)))
+    begin = max(0, start - 40)
+    prefix = "..." if begin else ""
+    return prefix + old[begin:begin + _WINDOW], prefix + new[begin:begin + _WINDOW]
+
+
+def _text_lines(change: FieldChange) -> list[str]:
+    old, new = str(change.old or ""), str(change.new or "")
+    shown_old, shown_new = _text_window(old, new)
+    lines = [f"[bold]{change.field}[/] [dim]({len(old)} -> {len(new)} chars)[/]",
+             f"[red]- {escape(printable(shown_old))}[/]",
+             f"[green]+ {escape(printable(shown_new))}[/]"]
+    if visible(old) == visible(new):
+        lines.append("[bold red]the texts differ only in invisible or control characters[/]")
+    return lines
+
+
+def _field_lines(change: FieldChange) -> list[str]:
+    title = f"[bold]{change.field}[/]"
+    if change.paths:
+        return [title, *_path_lines(change)]
+    if change.field == "description":
+        return _text_lines(change)
+    return [f"{title}: {_short(change.old, 60)} -> {_short(change.new, 60)}"]
+
+
+def _item_details(item: ItemDiff) -> str:
+    lines: list[str] = []
+    if item.rug_pull:
+        lines.append("[bold red]possible rug pull: the tool kept its name but changed "
+                     "what it tells the model[/]")
+    for change in item.changes:
+        lines += _field_lines(change)
+    lines += [f"[red]+ finding {escape(c)}[/]" for c in item.findings_added]
+    lines += [f"[green]- finding {escape(c)}[/]" for c in item.findings_removed]
+    return "\n".join(lines) or "[dim]-[/]"
+
+
+def _risk_cell(item: ItemDiff) -> str:
+    old = f"[{RISK_STYLES[Risk[item.risk_old]]}]{item.risk_old}[/]" if item.risk_old else ""
+    new = f"[{RISK_STYLES[Risk[item.risk_new]]}]{item.risk_new}[/]" if item.risk_new else ""
+    if old and new and item.risk_old != item.risk_new:
+        return f"{old} -> {new}"
+    return new or old
+
+
+def _combined_lines(combined: CombinedDiff) -> list[str]:
+    def side(status: str, risk: str | None, cut: str | None) -> str:
+        return status + (f" {risk}" if risk else "") + (f", cut point {cut}" if cut else "")
+
+    lines = [(f"{side(combined.status_old, combined.risk_old, combined.cut_point_old)} -> "
+             f"{side(combined.status_new, combined.risk_new, combined.cut_point_new)}")]
+    if combined.id_old != combined.id_new and combined.id_old and combined.id_new:
+        lines.append("[yellow]finding id changed: the set of servers involved changed[/]")
+    for capability in CAPABILITIES:
+        added = combined.tools_added.get(capability, ())
+        removed = combined.tools_removed.get(capability, ())
+        if added:
+            lines.append(f"[red]+ {capability}: {_short(', '.join(added), 300)}[/]")
+        if removed:
+            lines.append(f"[green]- {capability}: {_short(', '.join(removed), 300)}[/]")
+    return lines
+
+
+def render_diff(diff: SnapshotDiff) -> None:
+    console.print(
+        f"[bold]snapshot diff[/] {escape(printable(diff.old_source, 60))} "
+        f"[dim]({escape(printable(diff.old_captured_at, 30))}, {diff.old_digest[:12]})[/]"
+        f" -> {escape(printable(diff.new_source, 60))} "
+        f"[dim]({escape(printable(diff.new_captured_at, 30))}, {diff.new_digest[:12]})[/]")
+    if not diff.changed:
+        console.print("[bold green]No change in the attack surface[/] [dim](same content "
+                      "digest; capture time and path are not content)[/]")
+        return
+    for change in diff.context:
+        console.print(f"[bold yellow]{change.field} changed:[/] {_short(change.old, 80)} -> "
+                      f"{_short(change.new, 80)}")
+    if any(c.field == "mode" for c in diff.context):
+        console.print("[yellow]Comparing a static and a live snapshot: live tools belong to "
+                      "a server, file tools do not, so they show as removed and added.[/]")
+    if diff.unclassified:
+        console.print("[yellow]The content differs, but in nothing compared item by item "
+                      "(e.g. the order of tools). Compare the files to see it.[/]")
+    table = Table(show_lines=True)
+    table.add_column("Change", no_wrap=True)
+    table.add_column("Item", style="bold cyan")
+    table.add_column("Risk", justify="center")
+    table.add_column("Details")
+    for item in diff.items:
+        sign, style = _CHANGE_STYLES[item.category.split("-")[1]]
+        label = item.label + (f" #{item.occurrence + 1}" if item.occurrence else "")
+        table.add_row(f"[{style}]{sign} {item.category}[/]",
+                      escape(printable(label, 120)), _risk_cell(item), _item_details(item))
+    if diff.items:
+        console.print(table)
+    if diff.combined is not None and diff.combined.changed:
+        console.print(Panel("\n".join(_combined_lines(diff.combined)),
+                            title=f"{COMBINED_RULE} (experimental)", border_style="yellow"))
+    counts = "  ".join(f"{category} {n}" for category, n in sorted(diff.counts().items()))
+    console.print(f"\n{len(diff.items)} change(s)  {counts}")

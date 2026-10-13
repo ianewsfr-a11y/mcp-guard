@@ -17,3 +17,10 @@ def printable(text: str, limit: int | None = None) -> str:
     if limit is not None and len(cleaned) > limit:
         return cleaned[: max(limit - 1, 0)] + "…"
     return cleaned
+
+
+def visible(text: str) -> str:
+    """The text without the characters `printable` would replace: two strings
+    with the same `visible` form differ only in invisible or control
+    characters (a classic way to hide a change)."""
+    return _CONTROL.sub("", str(text))
