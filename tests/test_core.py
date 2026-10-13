@@ -5,7 +5,8 @@ import pytest
 from click.testing import CliRunner
 
 import mcp_guard
-from mcp_guard import Risk, audit, cli, discover, strip_jsonc, tokenize
+from mcp_guard import Risk, audit, discover, strip_jsonc, tokenize
+from mcp_guard.cli import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "config_example.json"
@@ -96,7 +97,7 @@ def test_broad_filesystem_scope_and_insecure_transport():
     {"jsonrpc": "2.0", "id": 1, "result": {"tools": [{"name": "t"}]}},
 ])
 def test_tool_list_formats(data):
-    _, tools = discover(data)
+    tools = discover(data).tools
     assert [t["name"] for t in tools] == ["t"]
 
 
@@ -107,7 +108,7 @@ def test_tool_list_formats(data):
     {"mcp": {"servers": {"a": {"command": "x"}}}},
 ])
 def test_server_config_formats(data):
-    servers, _ = discover(data)
+    servers = discover(data).servers
     assert list(servers) == ["a"]
 
 
@@ -299,3 +300,12 @@ def test_cli_rejects_non_utf8(tmp_path):
     path.write_bytes(b"\xff\xfe\x00\x81")
     result = CliRunner().invoke(cli, ["inspect", str(path)])
     assert result.exit_code == 2
+
+
+@pytest.mark.integration
+def test_cli_test_injection_table(tmp_path):
+    script = tmp_path / "server.py"
+    script.write_text("", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["test-injection", str(script)])
+    assert result.exit_code == 0
+    assert "MCPGUARD-CANARY-7F3A" in result.output
