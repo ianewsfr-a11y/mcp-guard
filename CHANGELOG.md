@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+- **`mcp-guard ui`**: interactive terminal UI (Textual) on the same audit as `inspect` (`--server`, `--live`, `--lock`, `--rules`).
+  - **Left pane:** a tree of servers and tools, riskiest first and colored by risk.
+  - **Right pane:** findings, lock status, tool description and input schema (highlighted JSON), and the server launch spec with secrets redacted.
+  - **Keys:** Up/Down, Tab, `r` refresh (in the background), `l` lock report, `t` light/dark, `q` quit.
+- Refresh with `--live` never starts a server whose spec changed since the user confirmed it.
+
+### Changed
+- New runtime dependency: `textual`.
+- The audit pipeline (config, then live, then lock) is shared by `inspect` and `ui` (`mcp_guard/pipeline.py`).
+
 ## v0.4.0
 
 ### Added
