@@ -254,7 +254,7 @@ mcp-guard inspect ~/.cursor/mcp.json --live --lock mcp-guard.lock --fail-on high
 |---|---|---|
 | `tool-changed` | HIGH | an annotation changed. Each security hint is named, in both directions or when removed, e.g. `annotation readOnlyHint: true -> false` |
 | `tool-changed` | HIGH | the input schema changed |
-| `tool-changed` | MEDIUM | the description changed (the evidence quotes how the locked description began) |
+| `tool-changed` | HIGH | the description changed (the evidence quotes how the locked description began) |
 | `tool-changed` | MEDIUM | other metadata changed (title, output schema...) |
 | `server-changed` | HIGH | command, arguments, URL, env/header names, or non-secret values such as `NODE_OPTIONS` differ |
 | `tool-added`, `server-added` | MEDIUM | not in the lock |
@@ -270,7 +270,7 @@ Write and delete words count in the name, the title or the first word of the des
 
 A client may auto-approve such a tool. `destructiveHint: false` only promises additive updates in the MCP spec, so a `create_*` tool declaring it is consistent.
 
-**Format.** Lock files are written in format 2: per tool, the values of the four security hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`; a non-boolean value is stored as `<non-boolean>`, never in clear), plus hashes of the annotations and of the normalized description. Format 1 locks (v0.4 to v0.6) are still read; regenerate them to see which annotation changed. Servers and tools are written in a fixed order, so reordering the servers or the keys of a config never changes the lock.
+**Format.** Lock files are written in format 2: per tool, the values of the four security hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`; a non-boolean value is stored as `<non-boolean>`, never in clear), plus hashes of the annotations and of the normalized description. Format 1 locks (v0.4 to v0.6) are still read. To migrate one, run `mcp-guard lock CONFIG --update` (add `--live` if it was a live lock). The command rewrites the lock in format 2 and keeps its salt. It refuses if anything changed since the lock was written, so a migration can never approve a rug pull: review the changes with `inspect --lock`, then run `lock` without `--update`. Servers and tools are written in a fixed order, so reordering the servers or the keys of a config never changes the lock.
 
 Commit the lock next to the config so changes show up in review. Secrets never reach it, not even hashed. Arguments are redacted, and values whose name looks like a credential (`*_TOKEN`, `*_KEY`, `Authorization`...) are left out, so rotating a key does not trigger an alert. Server `instructions` sent at initialization are not fingerprinted yet. A lock made with `--live` must be checked with `--live` (and vice versa). `lock --live` refuses to write a lock if a server cannot be reached; when checking, an unreachable server is reported as `live-discovery-failed` rather than as removed tools. A changed tool also goes through the normal audit, so a rug pull that adds hidden instructions shows both `tool-changed` and `tool-poisoning`.
 
