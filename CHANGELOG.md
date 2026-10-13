@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.1
+
+### Changed
+- README: `pip install mcp-guard-audit` is shown next to `pipx`, with how to install pipx when it is missing (common on Windows) and how to upgrade.
+
 ## v0.5.0
 
 ### Added
