@@ -16,9 +16,11 @@ By default it runs entirely offline and never executes the servers it audits. Th
 Audit a real MCP server in one command: the official reference **memory server** ([`@modelcontextprotocol/server-memory`](https://www.npmjs.com/package/@modelcontextprotocol/server-memory)). You need Python 3.10+ and Node.js (for `npx`).
 
 ```bash
-pipx install mcp-guard-audit
+pipx install mcp-guard-audit      # or: pip install mcp-guard-audit
 mcp-guard inspect --live --yes --server "npx -y @modelcontextprotocol/server-memory"
 ```
+
+No `pipx`? Use `pip install mcp-guard-audit`, or install pipx first (`python -m pip install --user pipx`, then `python -m pipx ensurepath` and open a new terminal).
 
 mcp-guard starts the server once, performs the MCP handshake, reads the tools it really exposes and audits each one:
 
@@ -79,12 +81,22 @@ $ mcp-guard inspect config_example.json
 Requires Python 3.10+.
 
 ```bash
+# with pipx (isolated environment, recommended for command-line tools):
 pipx install mcp-guard-audit
-# or, in a virtualenv:
+# or with pip (in a virtualenv, or for your user):
 pip install mcp-guard-audit
 # latest development version:
-pipx install git+https://github.com/ianewsfr-a11y/mcp-guard
+pip install git+https://github.com/ianewsfr-a11y/mcp-guard
 ```
+
+If `pipx` is not found (common on Windows), either use `pip`, or install pipx once:
+
+```bash
+python -m pip install --user pipx
+python -m pipx ensurepath   # then open a new terminal
+```
+
+To upgrade: `pipx upgrade mcp-guard-audit` or `pip install --upgrade mcp-guard-audit`.
 
 The PyPI package is `mcp-guard-audit` (the name `mcp-guard` is too close to an existing project); it installs the `mcp-guard` command. `python -m mcp_guard` works too.
 
