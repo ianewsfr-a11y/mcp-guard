@@ -389,15 +389,36 @@ def _write(path: Path, text: str) -> None:
         raise InputError(f"cannot write {path}: {exc.strerror or exc}") from exc
 
 
+MAX_SNAPSHOT_DEPTH = 64  # real schemas are a few levels deep
+
+
+def _depth(value: Any) -> int:
+    """Nesting depth of parsed JSON, computed without recursion."""
+    deepest, stack = 0, [(value, 1)]
+    while stack:
+        node, level = stack.pop()
+        deepest = max(deepest, level)
+        if isinstance(node, dict):
+            stack += [(child, level + 1) for child in node.values()]
+        elif isinstance(node, list):
+            stack += [(child, level + 1) for child in node]
+    return deepest
+
+
 def _read_snapshot(path: Path) -> MCPSnapshot:
-    """A snapshot file, fully validated: it must load and serialize back
-    (a crafted file nested too deep fails here, not in the middle of a diff)."""
+    """A snapshot file, fully validated: bounded nesting, valid model, and it
+    serializes back (so a crafted file fails here, not in the middle of a diff)."""
     try:
-        snap = MCPSnapshot.from_json(path.read_text(encoding="utf-8-sig"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        if _depth(data) > MAX_SNAPSHOT_DEPTH:
+            raise ValueError(f"JSON nested deeper than {MAX_SNAPSHOT_DEPTH} levels")
+        snap = MCPSnapshot.model_validate(data)
         _ = snap.digest
         return snap
     except (OSError, UnicodeDecodeError) as exc:
         raise InputError(f"cannot read snapshot {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise InputError(f"{path} is not an mcp-guard snapshot (invalid JSON: {exc})") from exc
     except ValidationError as exc:
         raise InputError(f"{path} is not an mcp-guard snapshot "
                          f"({exc.error_count()} error(s), first: "

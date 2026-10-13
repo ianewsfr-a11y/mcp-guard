@@ -407,11 +407,15 @@ def _deep(levels):
 def test_cli_diff_rejects_crafted_files_with_exit_code_2(tmp_path, monkeypatch):
     good = _write(tmp_path, "good.json", _snap([READ]))
     data = json.loads(good.read_text(encoding="utf-8"))
-    data["tools"][0]["input_schema"] = _deep(150)
+    data["tools"][0]["input_schema"] = _deep(100)  # refused on every platform
     deep = tmp_path / "deep.json"
     deep.write_text(json.dumps(data), encoding="utf-8")
     result = CliRunner().invoke(cli, ["snapshot", "diff", str(good), str(deep), "--exit-code"])
-    assert result.exit_code == 2 and "snapshot" in result.output
+    assert result.exit_code == 2 and "nested deeper than 64 levels" in result.output
+    data["tools"][0]["input_schema"] = _deep(20)  # a deep but plausible schema is fine
+    deep.write_text(json.dumps(data), encoding="utf-8")
+    ok = CliRunner().invoke(cli, ["snapshot", "diff", str(good), str(deep), "--exit-code"])
+    assert ok.exit_code == 1  # changed
 
     def broken(*args, **kwargs):
         raise ValueError("a tool no longer validates")
