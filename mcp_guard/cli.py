@@ -16,7 +16,15 @@ from .formats import load_config
 from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
 from .inline import SOURCE_LABEL, servers_from_cli
 from .live import LiveError, LiveResults, describe_launch, launch_warnings
-from .lock import DEFAULT_LOCK, fingerprint, write_lock
+from .lock import (
+    DEFAULT_LOCK,
+    LOCK_VERSION,
+    changes_since,
+    fingerprint,
+    migrated,
+    read_lock,
+    write_lock,
+)
 from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
 from .pipeline import AuditRun, Loader, run_audit
@@ -218,8 +226,12 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
               help="Do not ask for confirmation before --live.")
 @click.option("--timeout", type=click.FloatRange(min=1), default=20, show_default=True,
               help="Seconds to wait for each server in --live mode.")
+@click.option("--update", is_flag=True,
+              help="Rewrite the existing lock (-o) in the current format. Refused if "
+                   "anything changed since it was written: review with inspect --lock, "
+                   "then run lock without --update.")
 def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live: bool,
-         assume_yes: bool, timeout: float) -> None:
+         assume_yes: bool, timeout: float, update: bool) -> None:
     """Fingerprint servers and tools into a lock file, to detect rug pulls later."""
     data, source = _load_input(config_file, servers)
     static = _static_snapshot(data, source)
@@ -228,6 +240,9 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
     if failed:
         details = "; ".join(f"{printable(n, 60)}: {e}" for n, e in failed.items())
         raise InputError(f"cannot lock, some servers could not be reached: {details}")
+    if update:
+        _update_lock(collect(data, source, results), output)
+        return
     snap = fingerprint(collect(data, source, results))
     write_lock(snap, output)
     again = " --live" if live else ""
@@ -237,6 +252,27 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
                  f"({snap.mode} mode) in {escape(str(output))}.\n"
                  f"Commit it, then check with: mcp-guard inspect "
                  f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+def _update_lock(current: MCPSnapshot, path: Path) -> None:
+    """Migrate a lock to the current format, only if nothing changed: a
+    migration must never approve a rug pull silently."""
+    if not path.exists():
+        raise InputError(f"--update needs an existing lock file: {path} not found")
+    try:
+        locked = read_lock(path)
+        pending = changes_since(locked, current, DEFAULT_RULESET)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+    if pending:
+        listed = "; ".join(f"{printable(label, 60)}: {f.category}" for label, f in pending[:10])
+        more = f" and {len(pending) - 10} more" if len(pending) > 10 else ""
+        raise InputError(f"{len(pending)} change(s) since {path} was written ({listed}{more}). "
+                         f"Review them with `inspect --lock`, then run `lock` without "
+                         f"--update to approve them.")
+    write_lock(migrated(locked, current), path)
+    stderr.print(f"Updated {escape(str(path))} from format {locked.version} to "
+                 f"{LOCK_VERSION}: no change since it was written.")
 
 
 @cli.command()

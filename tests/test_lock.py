@@ -274,7 +274,9 @@ def test_metadata_changes_are_detected(field, value):
     changed["tools"][0][field] = value
     finding = next(f for f in _check(base, changed)["t"].findings
                    if f.category == "tool-changed")
-    assert "metadata" in finding.evidence
+    # v2 locks name the annotation that moved; other metadata stays "metadata"
+    expected = "annotation readOnlyHint" if field == "annotations" else "metadata"
+    assert expected in finding.evidence
 
 
 @pytest.mark.unit

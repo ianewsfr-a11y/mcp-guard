@@ -10,6 +10,7 @@ from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import ValidationError
 
+from .annotations import contradiction
 from .models import AuditEntry, Finding, Risk, ServerSpec, ToolSpec, error_fields
 from .poisoning import detect_poisoning
 from .redact import (
@@ -45,7 +46,9 @@ def _schema_property_names(schema: dict[str, Any]) -> list[str]:
 def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
                  server: str | None = None) -> AuditEntry:
     texts = (tool.description, *_schema_property_names(tool.inputSchema))
-    findings = (*detect_poisoning(tool), *ruleset.match(*texts, name=tool.name))
+    contradicted = contradiction(tool, ruleset)
+    findings = (*detect_poisoning(tool), *ruleset.match(*texts, name=tool.name),
+                *((contradicted,) if contradicted else ()))
     return AuditEntry(kind="tool", name=tool.name, server=server,
                       findings=ruleset.keep(findings))
 

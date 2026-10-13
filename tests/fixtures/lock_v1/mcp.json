@@ -1,0 +1,53 @@
+{
+  "mcpServers": {
+    "zeta": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@example/zeta-server"
+      ],
+      "env": {
+        "REGION": "eu"
+      }
+    },
+    "alpha": {
+      "command": "uvx",
+      "args": [
+        "alpha-mcp",
+        "--readonly"
+      ]
+    },
+    "remote": {
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "X-Team": "core"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "read_notes",
+      "description": "Read the user's notes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "delete_note",
+      "description": "Delete a note.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true
+      }
+    }
+  ]
+}

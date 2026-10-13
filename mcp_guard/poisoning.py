@@ -49,6 +49,22 @@ def normalize(text: str) -> str:
     return " ".join(text.split())
 
 
+
+def look_alikes(text: str) -> list[tuple[int, str]]:
+    """(offset, character) for each character that `normalize` removes or
+    turns into something else: invisible characters, Cyrillic or Greek
+    look-alikes of Latin letters, compatibility forms (fullwidth...)."""
+    found, verdicts = [], {}
+    for offset, ch in enumerate(text[:MAX_TEXT_CHARS]):
+        if ch.isascii():
+            continue
+        if ch not in verdicts:
+            verdicts[ch] = normalize(ch) != ch
+        if verdicts[ch]:
+            found.append((offset, ch))
+    return found
+
+
 # --- signals ------------------------------------------------------------------
 
 _OVERRIDE = re.compile(

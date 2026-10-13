@@ -21,6 +21,7 @@ _LEVEL = {Risk.LOW: "note", Risk.MEDIUM: "warning", Risk.HIGH: "error",
 _SECURITY_SEVERITY = {Risk.LOW: "2.0", Risk.MEDIUM: "5.5", Risk.HIGH: "8.0",
                       Risk.CRITICAL: "9.5"}
 _BUILTIN_RISK = {"tool-poisoning": Risk.CRITICAL, "hardcoded-secret": Risk.HIGH,
+                 "annotation-contradiction": Risk.HIGH,
                  "broad-filesystem-scope": Risk.HIGH, "tool-changed": Risk.HIGH,
                  "server-changed": Risk.HIGH, "tool-removed": Risk.LOW,
                  "server-removed": Risk.LOW}
