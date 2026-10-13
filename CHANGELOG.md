@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased (v0.8.0)
+
+### Upgrading from v0.7
+- **Locks gain two optional fields per server**: `pin` (command pinning) and `identity` (server name, version, protocol and a hash of its capabilities). mcp-guard v0.7 rejects a lock that contains them. Upgrade every machine and CI job that reads the lock before you rewrite it.
+- `lock` still writes format 2. Run `mcp-guard lock CONFIG --live --update` to add the pins and identities to an existing lock without approving anything else. It keeps the salt, and it refuses if a tool changed.
+
+### Added
+- **`mcp-guard proxy [--lock PATH] [--record PATH] [--record-bodies] [--server-name NAME] -- <cmd> <args...>`**: runs a stdio MCP server behind mcp-guard, between the client and the server.
+  - **Transport:** every byte is forwarded unchanged and never re-serialized. Partial lines and messages of several MB are handled. Line endings are not translated (stdin and stdout are binary on Windows). Pure Python, no new dependency.
+  - **Inspection on a copy, in its own thread:** `tools/list` requests (by id, pages by cursor) and their answers, `notifications/tools/list_changed`, `initialize`, `server/discover`, and the `_meta` serverInfo of any result.
+    - Each complete tool list is compared with the lock and with the previous list of the session: description, schema, and each security hint flipped, as in `inspect --lock`.
+    - Each list is also checked for poisoning and annotation contradictions.
+  - **Reports:** on stderr, prefixed `mcp-guard:`, each line once. The server's stderr is passed through.
+  - **Process:** SIGINT and SIGTERM are forwarded, the end of stdin is forwarded, and the proxy exits with the server's exit code (127 if the server cannot start).
+  - **Hostile servers:**
+    - Only a message without `method` that carries a `result` or an `error` counts as an answer, so a server request that reuses the id of a pending `tools/list` cannot hide that list.
+    - Inspection is bounded: 1,000 lines or 64 MB waiting, 1,000 pending requests, 2,000 tools per list, 16 MB per line. Beyond these limits, messages are still forwarded but not inspected, and the proxy says so as soon as it happens.
+    - A list nested too deeply to be fingerprinted is reported HIGH.
+    - A lock nested too deeply to be read gives session-only mode.
+  - **Fail-open, always.** A missing or unreadable lock, a journal that cannot be written, a message that is not JSON, or an internal error: the message is forwarded, the problem is reported on stderr, and the proxy goes on. There is no blocking mode. **The proxy prevents nothing; it makes changes visible.**
+  - **Matching the lock:**
+    - The lock entry is found from the pinned command.
+    - If two entries run the same program with the same arguments, the proxy does not guess: it asks for `--server-name`.
+    - If no entry matches, it says so with the command it saw and runs in session-only mode: comparisons within the session, and `readOnlyHint` flips after `list_changed`. A missing lock gives the same mode.
+- **`--record PATH`**: a JSON-lines journal, written by a dedicated thread through a queue of 1,000 entries.
+  - **When the queue is full:** entries are dropped and counted, never waited for. The count goes in a last `{"event": "end", "dropped": n}` line.
+  - **Default entry:** time, direction, method, id (both capped at 128 characters), size and SHA-256.
+  - **Format:** written as ASCII JSON, readable by its owner only (POSIX).
+  - **`--record-bodies`:** adds the full message, with a warning that it can hold secrets.
+- **Command pinning** (`pin` in the lock, written by `lock` for each stdio server). It holds:
+  - the resolved executable path, with the home directory stored as `~`;
+  - the arguments, in a strict form: no secret, only the scheme and host of a URL, no token-like word, `~` for the home directory. They are compared through a salted HMAC of their exact value (`args_hmac`), so a change is caught without the committed lock holding the value;
+  - the name of the command as written in the config (`npx`, `python`), so that a symlink resolving differently on each machine does not change the program;
+  - the SHA-256 of the executable and of the script it runs (`node server.js`), read without blocking and only from regular files;
+  - the date.
+
+  The proxy recomputes it in the background, after the server has started. A different hash, different arguments or another program is `command-pin-changed` HIGH. The same program and hashes at another path (`npx` lives somewhere else on every machine) is only a note. `lock --update` replaces the pin. A hash recorded in the lock that cannot be computed on this machine is said in a note, not skipped silently.
+- **Server identity**: `serverInfo` and capabilities are recorded by `lock --live` and compared by `inspect --lock` and by the proxy. A change is `server-changed` MEDIUM: an upgrade is legitimate, but a rug pull would happen at exactly that moment. The negotiated protocol version is recorded but not compared, because it depends on the client.
+
+### MCP revision 2026-07-28
+Source: the specification changelog for that revision (major changes, point 3), relayed by the project owner. We could not check it from here, so the code documents these assumptions where it relies on them:
+- **No `initialize` handshake.** `server/discover` announces the protocol versions, the capabilities and the server identity. The proxy does not wait for an `initialize`, and reads the identity from `server/discover`, from `initialize` (older revisions), or from `io.modelcontextprotocol/serverInfo` in the `_meta` of any result.
+- **`server/discover` carries no tools.** If an answer contains a `tools` array anyway, the proxy logs it as a non-standard shape and does not treat it as a `tools/list` page.
+- **`notifications/tools/list_changed`** is an ordinary line on stdio. With or without `io.modelcontextprotocol/subscriptionId`, the proxy notes it, and the subscription id when present.
+- **`resultType`:** both forms are accepted and nothing is rewritten. An absent `resultType` means "complete".
+- **Locks:** `ttlMs` and `cacheScope` are left out of the tool hash, so a cache hint does not look like a rug pull.
+
 ## v0.7.0
 
 ### Upgrading from v0.6
