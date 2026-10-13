@@ -62,10 +62,10 @@ def test_rug_pull_on_a_tool_description():
     assert (item.category, item.label, item.rug_pull) == ("tool-changed", "read_notes", True)
     description = next(c for c in item.changes if c.field == "description")
     assert (description.old, description.new) == (READ["description"], POISONED)
-    assert (item.risk_old, item.risk_new) == ("LOW", "CRITICAL")
+    assert (item.risk_old, item.risk_new) == ("LOW", "HIGH")
     assert "tool-poisoning" in item.findings_added
     risk = next(c for c in item.changes if c.field == "risk")
-    assert (risk.old, risk.new) == ("LOW", "CRITICAL")
+    assert (risk.old, risk.new) == ("LOW", "HIGH")
 
 
 @pytest.mark.unit

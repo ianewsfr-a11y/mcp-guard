@@ -44,10 +44,12 @@ def _schema_property_names(schema: dict[str, Any]) -> list[str]:
 
 
 def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
-                 server: str | None = None) -> AuditEntry:
+                 server: str | None = None,
+                 known_tools: frozenset[str] = frozenset()) -> AuditEntry:
     texts = (tool.description, *_schema_property_names(tool.inputSchema))
     contradicted = contradiction(tool, ruleset)
-    findings = (*detect_poisoning(tool), *ruleset.match(*texts, name=tool.name),
+    findings = (*detect_poisoning(tool, server, known_tools),
+                *ruleset.match(*texts, name=tool.name),
                 *((contradicted,) if contradicted else ()))
     return AuditEntry(kind="tool", name=tool.name, server=server,
                       findings=ruleset.keep(findings))
