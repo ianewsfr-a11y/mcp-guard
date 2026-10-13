@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Versioned snapshot** (`mcp_guard/snapshot.py`): `MCPSnapshot` is the captured state of an MCP setup. It holds servers and tools; each tool keeps its raw description, input schema, annotations, other metadata and provenance. With `--live` it also holds the resources and prompts each server declares.
+  - `canonical_json()` gives a canonical serialization (sorted keys, compact, ASCII) and `digest` its SHA-256. Both ignore the capture time, the file path and the mcp-guard version.
+  - Literal secrets are never serialized, so a snapshot is safe to write to disk:
+    - env and header values are redacted, except references;
+    - a secret-looking key redacts its whole subtree;
+    - URLs anywhere lose their userinfo and their secret query values.
+- `--live` pagination refuses a non-string or oversized `nextCursor`. Warnings recorded per server are capped at 20.
+- `--live` also calls `resources/list` and `prompts/list` when the server declares them. If they fail, the failure is recorded and the tools are kept. The TUI shows the counts in the server panel, and a tool's annotations next to its input schema.
+- Findings have a stable `id` (32 hex characters), included in `--format json`. It is the same value as the SARIF fingerprint, which is unchanged.
+
+### Changed
+- Internal architecture split into stages:
+  - `collector` turns the config and server answers into an `MCPSnapshot`;
+  - `analyzer` turns an `MCPSnapshot` into findings;
+  - `renderer` (formerly `render`), the CLI and the TUI only display.
+  - Secret redaction moves to `redact`. `inspect`, `lock` and `ui` share this pipeline. Reports are unchanged, and lock files from v0.5 still match.
+- New public API: `collect`, `analyze` and `MCPSnapshot` are exported from `mcp_guard`. `audit(data)` is now `analyze(collect(data))`.
+
 ## v0.5.1
 
 ### Changed

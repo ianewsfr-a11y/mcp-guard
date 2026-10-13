@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from typing import Any
@@ -89,8 +88,6 @@ def locate(text: str, name: str) -> int:
 
 def _result(entry: AuditEntry, finding: Finding, uri: str, line: int) -> dict[str, Any]:
     rid = rule_id(finding.category)
-    identity = f"{rid}|{entry.kind}|{entry.label}|{finding.evidence}"
-    fingerprint = hashlib.sha256(identity.encode()).hexdigest()
     return {
         "ruleId": rid,
         "level": _LEVEL[finding.risk],
@@ -100,7 +97,8 @@ def _result(entry: AuditEntry, finding: Finding, uri: str, line: int) -> dict[st
             "artifactLocation": {"uri": uri},
             "region": {"startLine": line},
         }}],
-        "partialFingerprints": {"mcpGuardFinding/v1": fingerprint[:32]},
+        # the finding's stable id: same value as in the JSON report
+        "partialFingerprints": {"mcpGuardFinding/v1": finding.id},
     }
 
 

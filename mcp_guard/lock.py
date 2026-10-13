@@ -26,17 +26,13 @@ from urllib.parse import parse_qsl, urlsplit
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from . import __version__
-from .analysis import (
-    is_secret_key,
-    redact_args,
-    safe_url,
-    sort_entries,
-    strip_url_credentials,
-    with_findings,
-)
+from .analysis import sort_entries, with_findings
+from .collector import Outcome, from_discovered
 from .formats import Discovered
-from .models import AuditEntry, ConfigFormatError, Finding, Risk, ServerSpec, ToolSpec
+from .models import AuditEntry, ConfigFormatError, Finding, Risk, ServerSpec
+from .redact import is_secret_key, redact_args, safe_url, strip_url_credentials
 from .rules import RuleSet
+from .snapshot import MCPSnapshot, ToolSnapshot
 from .text import printable
 
 LOCK_VERSION = 1
@@ -119,46 +115,48 @@ def server_print(server: ServerSpec, salt: str) -> ServerPrint:
     )
 
 
-def tool_print(tool: ToolSpec, server: str | None = None, occurrence: int = 0) -> ToolPrint:
-    others = {k: v for k, v in tool.model_dump().items()
+def tool_print(tool: ToolSnapshot, server: str | None = None, occurrence: int = 0,
+               ) -> ToolPrint:
+    others = {k: v for k, v in tool.to_mcp().items()
               if k not in ("name", "description", "inputSchema")}
     return ToolPrint(server=server, name=tool.name, occurrence=occurrence,
                      description=_sha256(tool.description),
-                     input_schema=_sha256(tool.inputSchema), metadata=_sha256(others),
+                     input_schema=_sha256(tool.input_schema), metadata=_sha256(others),
                      preview=printable(tool.description, _PREVIEW))
 
 
-def _tool_prints(raw_tools: list[Any], server: str | None) -> list[ToolPrint]:
+def _tool_prints(tools: tuple[ToolSnapshot, ...], server: str | None) -> list[ToolPrint]:
     prints: list[ToolPrint] = []
     seen: dict[str, int] = {}
-    for raw in raw_tools:
-        try:
-            tool = ToolSpec.model_validate(raw)
-        except ValidationError:
+    for tool in tools:
+        if tool.parse_error is not None:
             continue  # reported as malformed-entry by the audit
         prints.append(tool_print(tool, server, seen.get(tool.name, 0)))
         seen[tool.name] = seen.get(tool.name, 0) + 1
     return prints
 
 
-def snapshot(found: Discovered, live: dict[str, Any] | None = None,
-             salt: str | None = None) -> LockFile:
-    """Fingerprints of the config (and of live tools, if given). `live` maps a
-    server name to its tool list, or to an exception if it failed. Pass the
-    locked `salt` when the snapshot is meant to be compared with a lock."""
-    lock = LockFile(mode="live" if live is not None else "static",
+def fingerprint(snap: MCPSnapshot, salt: str | None = None) -> LockFile:
+    """Fingerprints of a snapshot. Pass the locked `salt` when the result is
+    meant to be compared with a lock."""
+    lock = LockFile(mode=snap.mode,
                     created=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     salt=salt or secrets.token_hex(16))
-    for name, raw in found.servers.items():
-        try:
-            lock.servers[name] = server_print(ServerSpec.model_validate(raw), lock.salt)
-        except ValidationError:
-            continue
-    lock.tools += _tool_prints(found.tools, None)
-    for name, outcome in (live or {}).items():
-        if isinstance(outcome, list):
-            lock.tools += _tool_prints(outcome, name)
+    for server in snap.servers:
+        if server.spec is not None:
+            lock.servers[server.name] = server_print(server.spec, lock.salt)
+    lock.tools += _tool_prints(snap.tools, None)
+    for server in snap.servers:
+        if server.live_status == "captured":
+            lock.tools += _tool_prints(server.tools, server.name)
     return lock
+
+
+def snapshot(found: Discovered, live: dict[str, Outcome] | None = None,
+             salt: str | None = None) -> LockFile:
+    """Fingerprints of the config (and of live tools, if given). `live` maps a
+    server name to its tool list, or to an exception if it failed."""
+    return fingerprint(from_discovered(found, captures=live), salt)
 
 
 # --- file I/O -------------------------------------------------------------------

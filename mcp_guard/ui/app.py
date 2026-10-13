@@ -156,7 +156,7 @@ class AuditApp(App[None]):
             run = self._loader()
         except Exception as exc:  # noqa: BLE001 - shown to the user, app stays usable
             self.call_from_thread(self.notify, f"Refresh failed: {printable(str(exc), 200)}",
-                                  severity="error")
+                                  severity="error", markup=False)
             return
         self.call_from_thread(self._apply, run)
 
