@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v0.8.1)
+## v0.8.1 (2026-10-14)
 
 ### Breaking
 - **New category `identity-changed` (MEDIUM)** for a changed server name, version or capabilities, in `inspect --lock` and in `proxy`. Until now it was `server-changed` MEDIUM, a category that is also HIGH for a changed command, arguments or URL, so `--fail-on` and SARIF consumers could not tell them apart. `server-changed` no longer reports identity changes: update the filters, SARIF queries and `--rules` entries that matched them through `server-changed`. ([#21](https://github.com/ianewsfr-a11y/mcp-guard/issues/21), reported by Jakub Hecht, @Duncopunc, in a thread on X.)
