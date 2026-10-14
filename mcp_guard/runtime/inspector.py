@@ -13,7 +13,8 @@
   change (`identity-changed`) re-arms the session: the next complete tool
   list (the one carrying the change, if it does) is compared in full with
   the lock and with the last list seen before, and every finding is written
-  again, marked "after a server identity change".
+  again, marked "after a server identity change". Poisoning and
+  contradiction findings are written again once too, then deduplicated.
 - `resultType` (2026-07-28) may be present or absent; nothing is rewritten.
 
 Lines are queued without blocking: a full queue (1000 lines or 64 MB)
@@ -182,10 +183,11 @@ class Session:
         tools = tuple(tool_snapshot(raw, i, "live", server) for i, raw in enumerate(raw_tools))
         known = frozenset(t.name for t in tools)
         contradicted: set[str] = set()
+        where = "analysis-rearmed" if self._rearmed else "analysis"  # written again once
         for tool in tools:
             if tool.parse_error is None:
                 try:
-                    contradicted |= self._analyze(tool.spec(), known)
+                    contradicted |= self._analyze(tool.spec(), known, where)
                 except RecursionError:
                     continue  # reported by the comparison below
         try:
@@ -213,13 +215,13 @@ class Session:
             self._note("tools changed before any earlier list was seen in this session")
         self._previous, self._announced, self._rearmed = current, False, False
 
-    def _analyze(self, spec: Any, known: frozenset[str]) -> set[str]:
+    def _analyze(self, spec: Any, known: frozenset[str], where: str = "analysis") -> set[str]:
         """Report poisoning and contradictions; the label, if it contradicts itself."""
         entry = analyze_tool(spec, DEFAULT_RULESET, self.context.server, known)
         contradicted = set()
         for finding in entry.findings:
             if finding.category.endswith("poisoning") or finding.category == CONTRADICTION:
-                self._report("analysis", entry.label, finding)
+                self._report(where, entry.label, finding)
             if finding.category == CONTRADICTION:
                 contradicted.add(entry.label)
         return contradicted

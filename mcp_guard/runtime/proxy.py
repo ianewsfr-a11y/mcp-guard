@@ -40,7 +40,7 @@ _MAX_SEEN = 1000  # lines remembered, to write each once or to count them
 _AFTER = "after a server identity change"
 _WHERE = {"lock": "since the lock", "session": "during this session", "analysis": "",
           "lock-rearmed": f"since the lock, {_AFTER}",
-          "session-rearmed": f"during this session, {_AFTER}"}
+          "session-rearmed": f"during this session, {_AFTER}", "analysis-rearmed": _AFTER}
 # Recomputed from the same reference on every tools/list: written once. A
 # session finding is an event (a flip, then a flip back): always written.
 _ONCE = frozenset({"lock", "analysis"})

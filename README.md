@@ -396,7 +396,7 @@ mcp-guard: [HIGH] tool-changed (during this session) read_notes: annotation read
 **What it compares:**
 - **every complete `tools/list`:** with the lock, and with the previous list of the same session. The changes are the ones `inspect --lock` reports. Each list is also checked for poisoning and annotation contradictions.
 - **`notifications/tools/list_changed`:** noted. The next list shows what changed.
-- **the server identity** (`initialize`, `server/discover` or `_meta`): with the lock and within the session (`identity-changed` MEDIUM). A change re-arms the session: the next complete `tools/list` is compared in full with the lock and with the last list seen before the change, and every finding is written again, marked "after a server identity change".
+- **the server identity** (`initialize`, `server/discover` or `_meta`): with the lock and within the session (`identity-changed` MEDIUM). A change re-arms the session: the next complete `tools/list` is compared in full with the lock and with the last list seen before the change, and every finding is written again, marked "after a server identity change", poisoning and contradiction findings included (once).
 - **the command pin, at start:** a different executable or script hash, different arguments or another program is `command-pin-changed` HIGH. The same program at another path is only a note, because `npx` lives in a different place on every machine.
 
 A finding from the comparison with the lock is written once, as it repeats on every list. A finding from the session is written every time it happens, so a tool that flips back and forth shows each flip; repeats end with `(occurrence n)`.
