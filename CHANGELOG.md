@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (v0.8.1)
+
+### Breaking
+- **New category `identity-changed` (MEDIUM)** for a changed server name, version or capabilities, in `inspect --lock` and in `proxy`. Until now it was `server-changed` MEDIUM, a category that is also HIGH for a changed command, arguments or URL, so `--fail-on` and SARIF consumers could not tell them apart. `server-changed` no longer reports identity changes: update the filters, SARIF queries and `--rules` entries that matched them through `server-changed`. ([#21](https://github.com/ianewsfr-a11y/mcp-guard/issues/21), reported by Jakub Hecht, @Duncopunc, in a thread on X.)
+
+### Changed
+- **An identity change re-arms the proxy session** (#21). The next complete `tools/list` is compared in full, with the lock and with the last list seen before the change, and every finding is written again with "after a server identity change". Poisoning and contradiction findings are written again once too, then deduplicated as before. This is the list that carries the change in its `_meta`, if it does. If the change came through `server/discover` or `initialize`, it is the next list.
+- **Session findings are always written** (#22). Before, the proxy wrote each identical line only once, so in a session that flipped `readOnlyHint` true -> false -> true -> false, the third flip was hidden. From the second identical finding on, the line ends with `(occurrence n)`. Findings from the comparison with the lock, and poisoning or contradiction findings, are still written once: they are recomputed from the same reference on every list.
+- **Changed arguments are reported with a multi-server lock** (#23). When no lock entry matches the command exactly and exactly one entry runs the same program, the proxy uses that entry, says so on stderr, and reports `command-pin-changed` HIGH ("arguments changed"). Before, it fell back to session-only mode with a note. Several entries running the same program are still ambiguous: the proxy asks for `--server-name`.
+- **Proxy findings say when a tool now contradicts its own description**, as `inspect --lock` already did: "the tool now contradicts its own description (annotation-contradiction)".
+
+### Tests
+- Every security hint flipped in both directions, in the lock diff and in the proxy: always HIGH. The direction is in the evidence, not in the severity.
+
 ## v0.8.0 (2026-10-13)
 
 ### Breaking

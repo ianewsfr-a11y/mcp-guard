@@ -157,7 +157,7 @@ def test_identity_change_since_the_lock(tmp_path):
     entry["identity"]["version"] = "0.9"
     lock.write_text(json.dumps(data), encoding="utf-8")
     _, _, err = _proxy("steady", _lines(INIT, LIST), ("--lock", str(lock)))
-    assert "[MEDIUM] server-changed (since the lock)" in err and "'0.9' -> '1.0'" in err
+    assert "[MEDIUM] identity-changed (since the lock)" in err and "'0.9' -> '1.0'" in err
 
 
 # --- fail-open ---------------------------------------------------------------------------
@@ -340,15 +340,20 @@ def test_internal_errors_are_reported_not_raised(monkeypatch):
 
 
 @pytest.mark.unit
-def test_reporter_writes_each_line_once():
+def test_reporter_writes_lock_findings_once_and_counts_session_ones():
     import io
     stream = io.StringIO()
     reporter = Reporter(stream)
     finding = Finding(category="tool-changed", risk=Risk.HIGH, evidence="x")
     for _ in range(3):
-        reporter.finding("session", "t", finding)
+        reporter.finding("lock", "t", finding)
     assert stream.getvalue().count("\n") == 1
-    assert stream.getvalue().startswith("mcp-guard: [HIGH] tool-changed (during this session)")
+    assert stream.getvalue().startswith("mcp-guard: [HIGH] tool-changed (since the lock)")
+    for _ in range(3):
+        reporter.finding("session", "t", finding)
+    line = "mcp-guard: [HIGH] tool-changed (during this session) t: x"
+    assert stream.getvalue().splitlines()[1:] == [
+        line, f"{line} (occurrence 2)", f"{line} (occurrence 3)"]
 
 
 @pytest.mark.unit
@@ -694,7 +699,9 @@ def test_reporter_memory_is_bounded(monkeypatch):
     reporter = Reporter(io.StringIO())
     for i in range(5):
         reporter.note(f"n{i}")
-    assert len(reporter._seen) <= 2
+        reporter.finding("session", f"t{i}", Finding(category="tool-changed", risk=Risk.HIGH,
+                                                      evidence="x"))
+    assert len(reporter._seen) <= 2 and len(reporter._counts) <= 2
 
 
 @pytest.mark.unit

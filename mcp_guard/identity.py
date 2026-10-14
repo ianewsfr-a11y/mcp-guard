@@ -14,8 +14,10 @@ revision (major changes, point 3), as relayed by the project owner; it could
 not be checked from here. `server/discover` carries no tools: `tools/list`
 stays the only source for them.
 
-A change of identity or capabilities is reported as MEDIUM: an upgrade is
-legitimate, but it is exactly when a rug pull would happen.
+A change of identity or capabilities is reported as `identity-changed`
+MEDIUM, a category of its own (`server-changed` is HIGH, for a changed
+command, arguments or URL): an upgrade is legitimate, but it is exactly when
+a rug pull would happen.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from .models import Finding, Risk
 from .text import printable
 
 META_SERVER_INFO = "io.modelcontextprotocol/serverInfo"
+CATEGORY = "identity-changed"
 _MAX_TEXT = 200
 
 
@@ -106,5 +109,5 @@ def identity_findings(old: ServerIdentity, new: ServerIdentity, where: str) -> l
     changes = identity_changes(old, new)
     if not changes:
         return []
-    return [Finding(category="server-changed", risk=Risk.MEDIUM,
+    return [Finding(category=CATEGORY, risk=Risk.MEDIUM,
                     evidence=f"server identity changed {where}: " + "; ".join(changes))]
