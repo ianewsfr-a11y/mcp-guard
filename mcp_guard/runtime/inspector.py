@@ -9,7 +9,11 @@
   changed.
 - Server identity, from `initialize`, `server/discover` or the `_meta` of
   any result: compared with the lock and within the session. There is no
-  need to wait for an `initialize` (the 2026-07-28 revision has none).
+  need to wait for an `initialize` (the 2026-07-28 revision has none). A
+  change (`identity-changed`) re-arms the session: the next complete tool
+  list (the one carrying the change, if it does) is compared in full with
+  the lock and with the last list seen before, and every finding is written
+  again, marked "after a server identity change".
 - `resultType` (2026-07-28) may be present or absent; nothing is rewritten.
 
 Lines are queued without blocking: a full queue (1000 lines or 64 MB)
@@ -90,6 +94,7 @@ class Session:
         self._previous: list[ToolPrint] | None = None
         self._identity: ServerIdentity | None = None
         self._announced = False
+        self._rearmed = False  # an identity change: the next comparison is complete
         self.listings = 0
 
     @property
@@ -141,11 +146,16 @@ class Session:
         if current is None:
             return
         if self._identity is not None:
-            for finding in identity_findings(self._identity, current, "during this session"):
-                self._report("session", self.server, finding)
-        elif self.context.identity is not None:
-            for finding in identity_findings(self.context.identity, current, "since the lock"):
-                self._report("lock", self.server, finding)
+            changes = identity_findings(self._identity, current, "during this session")
+            where = "session"
+        else:
+            reference = self.context.identity
+            changes = identity_findings(reference, current, "since the lock") \
+                if reference is not None else []
+            where = "lock"
+        for finding in changes:
+            self._report(where, self.server, finding)
+        self._rearmed = self._rearmed or bool(changes)
         self._identity = current
 
     def _page(self, result: dict[str, Any]) -> None:
@@ -171,39 +181,48 @@ class Session:
         server = self.context.server
         tools = tuple(tool_snapshot(raw, i, "live", server) for i, raw in enumerate(raw_tools))
         known = frozenset(t.name for t in tools)
+        contradicted: set[str] = set()
         for tool in tools:
             if tool.parse_error is None:
                 try:
-                    self._analyze(tool.spec(), known)
+                    contradicted |= self._analyze(tool.spec(), known)
                 except RecursionError:
                     continue  # reported by the comparison below
         try:
-            self._diff(tools, server)
+            self._diff(tools, server, frozenset(contradicted))
         except RecursionError:
             self._report("analysis", self.server, Finding(
                 category="tool-changed", risk=Risk.HIGH,
                 evidence="a tool list nested too deeply to be fingerprinted: it was not "
                          "compared with the lock or the previous list"))
 
-    def _diff(self, tools: tuple[Any, ...], server: str | None) -> None:
+    def _diff(self, tools: tuple[Any, ...], server: str | None,
+              contradicted: frozenset[str]) -> None:
         texts = _texts(tools, server)
+        suffix = "-rearmed" if self._rearmed else ""  # spent only once the diff succeeds
         if self.context.tools is not None:
             prints = tool_prints(tools, server, self.context.version)
-            for label, finding in diff_tools(list(self.context.tools), prints, texts):
-                self._report("lock", label, finding)
+            for label, finding in diff_tools(list(self.context.tools), prints, texts,
+                                             contradicted):
+                self._report("lock" + suffix, label, finding)
         current = tool_prints(tools, server)
         if self._previous is not None:
-            for label, finding in diff_tools(self._previous, current, texts):
-                self._report("session", label, finding)
+            for label, finding in diff_tools(self._previous, current, texts, contradicted):
+                self._report("session" + suffix, label, finding)
         elif self._announced:
             self._note("tools changed before any earlier list was seen in this session")
-        self._previous, self._announced = current, False
+        self._previous, self._announced, self._rearmed = current, False, False
 
-    def _analyze(self, spec: Any, known: frozenset[str]) -> None:
+    def _analyze(self, spec: Any, known: frozenset[str]) -> set[str]:
+        """Report poisoning and contradictions; the label, if it contradicts itself."""
         entry = analyze_tool(spec, DEFAULT_RULESET, self.context.server, known)
+        contradicted = set()
         for finding in entry.findings:
             if finding.category.endswith("poisoning") or finding.category == CONTRADICTION:
                 self._report("analysis", entry.label, finding)
+            if finding.category == CONTRADICTION:
+                contradicted.add(entry.label)
+        return contradicted
 
 
 class Inspector:

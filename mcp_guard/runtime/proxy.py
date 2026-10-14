@@ -36,25 +36,45 @@ from .recorder import Recorder
 CHUNK = 64 * 1024
 PREFIX = "mcp-guard: "
 SERVER_PREFIX = b"server: "  # on each line of the server's stderr
-_MAX_SEEN = 1000  # lines remembered to write each once
-_WHERE = {"lock": "since the lock", "session": "during this session", "analysis": ""}
+_MAX_SEEN = 1000  # lines remembered, to write each once or to count them
+_AFTER = "after a server identity change"
+_WHERE = {"lock": "since the lock", "session": "during this session", "analysis": "",
+          "lock-rearmed": f"since the lock, {_AFTER}",
+          "session-rearmed": f"during this session, {_AFTER}"}
+# Recomputed from the same reference on every tools/list: written once. A
+# session finding is an event (a flip, then a flip back): always written.
+_ONCE = frozenset({"lock", "analysis"})
 
 
 class Reporter:
-    """Writes `mcp-guard:` lines on stderr, once each, from any thread."""
+    """Writes `mcp-guard:` lines on stderr from any thread. Notes and lock or
+    analysis findings are written once; session findings every time, with
+    `(occurrence n)` from the second identical one."""
 
     def __init__(self, stream: IO[str] | None = None) -> None:
         self._stream = stream
         self._lock = threading.Lock()
         self._seen: set[str] = set()
+        self._counts: dict[str, int] = {}
 
     def note(self, text: str) -> None:
         self._write(PREFIX + printable(text, 1000))
 
     def finding(self, where: str, label: str, finding: Finding) -> None:
         context = f" ({_WHERE[where]})" if _WHERE.get(where) else ""
-        self._write(f"{PREFIX}[{finding.risk.name}] {finding.category}{context} "
-                    f"{printable(label, 120)}: {printable(finding.evidence, 600)}")
+        line = (f"{PREFIX}[{finding.risk.name}] {finding.category}{context} "
+                f"{printable(label, 120)}: {printable(finding.evidence, 600)}")
+        if where in _ONCE:
+            self._write(line)
+        else:
+            self._write(self._counted(line), once=False)
+
+    def _counted(self, line: str) -> str:
+        with self._lock:
+            if len(self._counts) >= _MAX_SEEN and line not in self._counts:
+                self._counts.clear()  # memory stays bounded; a count may restart
+            count = self._counts[line] = self._counts.get(line, 0) + 1
+        return line if count == 1 else f"{line} (occurrence {count})"
 
     def raw(self, data: bytes) -> None:
         """Bytes from the server's stderr, written whole between our lines."""
@@ -72,13 +92,14 @@ class Reporter:
             except (OSError, ValueError):
                 pass  # stderr gone: nothing to relay to
 
-    def _write(self, line: str) -> None:
+    def _write(self, line: str, once: bool = True) -> None:
         with self._lock:
-            if line in self._seen:
+            if once and line in self._seen:
                 return
-            if len(self._seen) >= _MAX_SEEN:
+            if once and len(self._seen) >= _MAX_SEEN:
                 self._seen.clear()  # a line may then repeat; memory stays bounded
-            self._seen.add(line)
+            if once:
+                self._seen.add(line)
             try:
                 stream = self._stream or sys.stderr
                 stream.write(line + "\n")

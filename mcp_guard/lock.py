@@ -444,9 +444,12 @@ def tool_prints(tools: tuple[ToolSnapshot, ...], server: str | None,
 
 def diff_tools(old: list[ToolPrint], new: list[ToolPrint],
                texts: dict[tuple[str | None, str, int], str] | None = None,
+               contradicted: frozenset[str] = frozenset(),
                ) -> list[tuple[str, Finding]]:
     """(label, finding) for every tool added, changed or removed between two
-    sets of fingerprints, with the same severities as `inspect --lock`."""
+    sets of fingerprints, with the same severities and wording as
+    `inspect --lock` (`contradicted`: labels of the tools that now contradict
+    their own description)."""
     before = {t.key: t for t in old}
     after = {t.key: t for t in new}
     found: list[tuple[str, Finding]] = []
@@ -454,8 +457,9 @@ def diff_tools(old: list[ToolPrint], new: list[ToolPrint],
         found.append((after[key].label, Finding(category="tool-added", risk=Risk.MEDIUM,
                                                 evidence="not in the reference list")))
     for key in sorted(before.keys() & after.keys(), key=str):
-        found += [(after[key].label, change)
-                  for change in _tool_change(before[key], after[key], (texts or {}).get(key))]
+        label = after[key].label
+        found += [(label, change) for change in _tool_change(
+            before[key], after[key], (texts or {}).get(key), label in contradicted)]
     for key in sorted(before.keys() - after.keys(), key=str):
         found.append((before[key].label, Finding(category="tool-removed", risk=Risk.LOW,
                                                  evidence="no longer listed")))

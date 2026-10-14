@@ -4,7 +4,9 @@ Matching, in order:
 
 1. `--server-name NAME`, when given;
 2. the entry whose pinned program and arguments equal the command seen;
-3. the only server of the lock, when it has just one.
+3. the only entry that runs the same program (its arguments changed:
+   `command-pin-changed` says so);
+4. the only server of the lock, when it has just one.
 
 Two entries with the same program and arguments (a copy-pasted config) are
 ambiguous: the proxy does not guess, it asks for `--server-name`. Ambiguity,
@@ -56,6 +58,13 @@ def _choose(lock: LockFile, pin: Pin, name: str | None, shown: str,
         warn(f"several lock entries run {shown} ({', '.join(map(repr, matching))}): "
              "pass --server-name to choose; session only until then")
         return None
+    same_program = [n for n, s in lock.servers.items()
+                    if s.pin is not None and s.pin.program == pin.program]
+    if len(same_program) == 1:
+        warn(f"no lock entry runs {shown} exactly; comparing with {printable(same_program[0], 80)!r}, "
+             f"the only entry that runs {printable(pin.program, 40)}. If this is another server, pass "
+             "--server-name")
+        return same_program[0]
     if len(lock.servers) == 1:
         return next(iter(lock.servers))
     warn(f"no lock entry runs {shown}; if its command changed, pass --server-name to "

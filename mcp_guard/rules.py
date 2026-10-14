@@ -117,6 +117,9 @@ BUILTIN_CHECKS: dict[str, str] = {
                                  "annotations, but its name or description says it writes, "
                                  "deletes or runs commands: a client may auto-approve it."),
     "hardcoded-secret": "A credential is stored in plain text in the configuration.",
+    "identity-changed": ("The server announces another name, version or capabilities than "
+                         "in the lock file or earlier in the session (an upgrade, or the "
+                         "moment a rug pull would happen)."),
     "secret-in-args": ("A launch argument looks like a credential (a bearer token, a "
                        "password in a connection string, a long random token). It shows in "
                        "process lists, and the lock's salted HMAC of the arguments can be "

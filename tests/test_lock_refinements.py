@@ -99,6 +99,19 @@ def test_every_security_hint_change_is_high(tmp_path, hint, change):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("hint", SECURITY_HINTS)
+def test_every_security_hint_flip_is_high_in_the_reverse_direction(tmp_path, hint):
+    """The flip above goes one way from TOOL; this one goes back. The
+    direction shows in the evidence, never in the severity."""
+    old = json.loads(json.dumps(TOOL))
+    old["annotations"][hint] = not TOOL["annotations"][hint]
+    expected = (f"annotation {hint}: {json.dumps(old['annotations'][hint])} -> "
+                f"{json.dumps(TOOL['annotations'][hint])}")
+    changes = _changes(_findings([old], [TOOL], tmp_path))
+    assert (Risk.HIGH, expected) in [(r, e.split(";")[0]) for r, e in changes]
+
+
+@pytest.mark.unit
 def test_annotations_removed_entirely_and_non_hint_changes(tmp_path):
     bare = {k: v for k, v in TOOL.items() if k != "annotations"}
     removed = _changes(_findings([TOOL], [bare], tmp_path))

@@ -344,6 +344,7 @@ mcp-guard inspect ~/.cursor/mcp.json --live --lock mcp-guard.lock --fail-on high
 | `tool-changed` | HIGH | the description changed (the evidence quotes how the locked description began) |
 | `tool-changed` | MEDIUM | other metadata changed (title, output schema...) |
 | `server-changed` | HIGH | command, arguments, URL, env/header names, or non-secret values such as `NODE_OPTIONS` differ |
+| `identity-changed` | MEDIUM | the server announces another name, version or capabilities (with `--live`) |
 | `tool-added`, `server-added` | MEDIUM | not in the lock |
 | `tool-removed`, `server-removed` | LOW | in the lock, no longer present |
 
@@ -369,7 +370,7 @@ Commit the lock next to the config so changes show up in review. Secrets never r
 
 The arguments' HMAC is keyed by the lock's `salt`, which is stored in the lock itself. The HMAC stops precomputed tables, not guessing: anyone who reads the lock can recover a guessable value. Keep secrets in env variables, never in arguments. `secret-in-args` (MEDIUM) flags arguments that look like one: `Bearer x`, `password=` in a connection string, or a long random token.
 
-With `--live`, it also records the server's `identity`: its name and version, and a hash of its capabilities. `inspect --lock` compares the identity (`server-changed` MEDIUM). `proxy` compares both, see below.
+With `--live`, it also records the server's `identity`: its name and version, and a hash of its capabilities. `inspect --lock` compares the identity (`identity-changed` MEDIUM). `proxy` compares both, see below.
 
 ### `proxy`: watch a server while you use it
 
@@ -395,10 +396,12 @@ mcp-guard: [HIGH] tool-changed (during this session) read_notes: annotation read
 **What it compares:**
 - **every complete `tools/list`:** with the lock, and with the previous list of the same session. The changes are the ones `inspect --lock` reports. Each list is also checked for poisoning and annotation contradictions.
 - **`notifications/tools/list_changed`:** noted. The next list shows what changed.
-- **the server identity** (`initialize`, `server/discover` or `_meta`): with the lock and within the session.
+- **the server identity** (`initialize`, `server/discover` or `_meta`): with the lock and within the session (`identity-changed` MEDIUM). A change re-arms the session: the next complete `tools/list` is compared in full with the lock and with the last list seen before the change, and every finding is written again, marked "after a server identity change".
 - **the command pin, at start:** a different executable or script hash, different arguments or another program is `command-pin-changed` HIGH. The same program at another path is only a note, because `npx` lives in a different place on every machine.
 
-The proxy finds its lock entry from the command it runs. When two entries run the same command, it asks for `--server-name`. When none matches, or there is no lock, it says so and compares within the session only.
+A finding from the comparison with the lock is written once, as it repeats on every list. A finding from the session is written every time it happens, so a tool that flips back and forth shows each flip; repeats end with `(occurrence n)`.
+
+The proxy finds its lock entry from the command it runs. If no entry has the same command but exactly one runs the same program, the proxy uses it, says so, and reports the changed arguments (`command-pin-changed` HIGH). When two entries run the same command, or the same program, it asks for `--server-name`. When none matches, or there is no lock, it says so and compares within the session only.
 
 **Fail-open.** A missing or corrupt lock, a journal it cannot write, a line that is not JSON, or an internal error never stops a message. The proxy reports the problem and goes on. It has no blocking mode. The server's exit code, SIGINT/SIGTERM and the end of stdin pass through. The server's stderr is relayed with each line prefixed `server: `, so it cannot pass for an `mcp-guard:` line.
 
