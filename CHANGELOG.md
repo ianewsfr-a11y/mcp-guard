@@ -1,31 +1,43 @@
 # Changelog
 
-## Unreleased (v0.9.0)
+## v0.9.0 (2026-10-15)
+
+### `mcp-guard scan`: everything configured on the machine, in one command
+- **Without arguments, `scan` finds the MCP configs of the clients installed on the machine**, audits each one with the same analysis as `inspect`, and prints the report by client, then by server. Clients covered (user files, and project files in the current directory):
+  - **Claude Desktop**: `claude_desktop_config.json` (`%APPDATA%\Claude\`, `~/Library/Application Support/Claude/`);
+  - **Claude Code**: `~/.claude.json` (user servers and each project's local servers, nothing else from that file) and `./.mcp.json`;
+  - **Cursor**: `~/.cursor/mcp.json` and `./.cursor/mcp.json`;
+  - **VS Code**: `~/.copilot/mcp-config.json` (or `$COPILOT_HOME`), the profile `Code/User/mcp.json`, and `./.vscode/mcp.json`;
+  - **Windsurf (Devin Desktop)**: `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\` on Windows) and the former `~/.codeium/windsurf/mcp_config.json`;
+  - **Zed**: `settings.json` (`context_servers`);
+  - **Continue**: `~/.continue/config.yaml`;
+  - **Cline**: `~/.cline/data/settings/cline_mcp_settings.json` and its former VS Code extension storage;
+  - **Roo Code**: `mcp_settings.json` in its VS Code extension storage.
+- **Each path was checked against the client's official documentation or source** (2026-10-15). The ones they do not confirm are still searched and marked "not verified" in the code, the README and the report: Claude Desktop on Linux, `~/.claude.json` on Windows, the VS Code profile `mcp.json`, the former Windsurf and Cline paths, and Roo Code's folder.
+- **Static only:** files are read, no server is started or contacted, no network request is made. A config larger than 10 MB, unreadable or not valid JSON/YAML is reported as "not read", with a warning, and the scan goes on. In the current directory, a config that is a symbolic link is not followed (a cloned repository could point it at any file of the user).
+- **A server configured in several places is audited once**: two entries are the same server when their command, arguments, environment, headers, URL and `disabled` state are equal. The report lists every place it appears.
+- **Exit code:** 0 by default, as with `inspect` (`--fail-on none`). `--fail-on high` exits with 1 when a server reaches HIGH or above, for CI.
+
+### `--sarif` and `--json`
+- **`scan --sarif`** writes a SARIF 2.1.0 log: the rules, one result per finding (level mapped from the severity), located in the config where the server was first found, the other places as `relatedLocations`. It is validated in the tests against the official OASIS SARIF 2.1.0 schema. **`scan --json`** lists the configs read (client, scope, status, servers), each distinct server with its findings and every place it was found, and a summary. `-o FILE` writes either report to a file. Both hold absolute paths (SARIF needs them); the terminal report shows `~`.
+
+### `mcp-guard-audit` command
+- **The CLI is also installed as `mcp-guard-audit`**, the PyPI package name, so `uvx mcp-guard-audit scan` runs without installing anything. `mcp-guard` is unchanged.
+
+### Fixed: quadratic time on hostile JSONC files and in SARIF line lookup
+- **Reading a hostile JSONC file no longer takes quadratic time.** This also affected `inspect`: a file full of unclosed `/*` comments or unclosed strings kept the comment stripper busy for minutes within a few MB. An unclosed comment or string now runs to the end of the text, matched once. Valid JSON and JSONC read as before.
+- **SARIF line lookup is linear** on files with many blank lines (the YAML patterns no longer let `\s` span newlines), in `inspect --format sarif` and `scan --sarif`.
+
+### URLs redacted in finding evidence
+- **A URL in any finding's evidence shows only its scheme and host** (and port): the path, the query and the fragment are replaced by `[…]`, and userinfo is dropped. This applies to every finding, whoever builds it: `insecure-transport`, poisoning evidence that quotes a description, live errors, lock and proxy changes. A token carried in a remote MCP URL (`https://host/mcp/<token>`, `?session=<token>`) no longer reaches the table, the JSON, the SARIF report or the proxy's stderr. A poisoning payload hidden in a URL path or query is still detected; the evidence names the field and the host.
 
 ### Breaking
-- **Finding ids changed, for every finding.** An id (also the SARIF `partialFingerprints` value and the `id` of the JSON reports) is now computed from the category, the item (server, tool) and the field the finding is about (`env:API_KEY`, `url`, `description`, `annotations.readOnlyHint`...), no longer from the evidence text. A finding now keeps its id when its evidence is reworded or redacted. GitHub code scanning will close the existing mcp-guard alerts once and open them again under the new fingerprints; JSON consumers that stored ids must re-baseline. Poisoning and `--combined` ids already ignored the evidence and do not change.
+- **Finding ids changed, for every finding except poisoning and `--combined`.** An id (also the SARIF `partialFingerprints` value and the JSON `id`) is now computed from the category, the item (server, tool) and the field the finding is about (`env:API_KEY`, `args[2]`, `url`, `description`, `annotations.readOnlyHint`...), no longer from the evidence text, so a finding keeps its id when its evidence is reworded or redacted. GitHub code scanning will close the existing mcp-guard alerts once and open them again under the new fingerprints; JSON consumers that stored ids must re-baseline.
 - **The proxy deduplicates lock and analysis findings by (category, item, field)**, not by the text of the line. A second, different change of the same field since the lock is no longer written again: the session comparison reports it. Session findings are still all written, with `(occurrence n)`.
 
-### Changed
-- **URLs in finding evidence show only the scheme and the host** (and the port): the path, the query and the fragment are replaced by `[…]`, in every finding, whoever builds it (`insecure-transport`, poisoning evidence quoting a description, live errors, lock changes...). A token carried in the path or the query of a remote MCP URL (`https://host/mcp/<token>`, `?session=<token>`) no longer reaches the table, the JSON or the SARIF report. Userinfo was already removed.
-
-### Added
-- **`mcp-guard scan`: one command for everything configured on the machine.** Without arguments, it looks for the MCP configs of Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Zed, Continue, Cline and Roo Code (user-level files, and project files in the current directory), audits each one with the same analysis as `inspect`, and groups the report by client, then by server. The list of paths is in the README; the ones that the client's official documentation does not confirm are marked "not verified" in the code and in the report.
-  - **Static only:** files are read, no server is started or contacted, no network request is made. A config larger than 10 MB, unreadable or not valid JSON/YAML is reported as "not read" and the scan goes on.
-  - **Claude Code:** in `~/.claude.json`, only the user-scope `mcpServers` and the local-scope `projects.<path>.mcpServers` are read, nothing else from that file.
-  - **A server configured in several places is audited once.** Two entries are the same server when their command, arguments, environment, headers and URL are equal (the only fields the analysis reads); names and client-specific fields such as `type` or `disabled` do not count. The report lists every place it appears.
-  - **`--json`**: `configs` (each file read, with its client, scope, status and servers), `servers` (each distinct server with its findings and every place it was found) and a `summary`. **`--sarif`**: a SARIF 2.1.0 log with the rules, one result per finding, located in the config where the server was first found, the other places as `relatedLocations`. `-o FILE` writes either report to a file.
-  - **Exit code:** 0 by default, as with `inspect` (`--fail-on none`). `--fail-on high` exits with 1 when a server reaches HIGH or above, for CI.
-  - **Paths checked against each client's official documentation or source** on 2026-10-15. Two clients moved their files: Windsurf, now Devin Desktop, documents `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\` on Windows), and Cline `~/.cline/data/settings/cline_mcp_settings.json`. Their former paths are still searched, marked "not verified", as are Claude Desktop on Linux, `~/.claude.json` on Windows, the VS Code profile `mcp.json` and Roo Code's file. VS Code's documented user file `~/.copilot/mcp-config.json` (or `$COPILOT_HOME`) is searched too.
-  - **In the current directory, a config that is a symbolic link is not followed** (a cloned repository could point it at any file of the user). The JSON and SARIF reports hold absolute paths; the terminal report shows `~`.
-- **`mcp-guard-audit` command**, the same CLI under the PyPI package name, so that `uvx mcp-guard-audit scan` works without installing anything.
-
-### Fixed
-- **Reading a hostile JSONC file no longer takes quadratic time** (`inspect` and `scan`). A file full of unclosed `/*` comments or unclosed strings kept the comment stripper busy for minutes within a few MB: an unclosed comment or string now runs to the end of the text, matched once. Valid JSON and JSONC read as before.
-- **SARIF line lookup is linear** on files with many blank lines (the YAML patterns no longer let `\s` span newlines).
-
 ### Tests
-- Client paths per OS with a fake home and `APPDATA`/`XDG_CONFIG_HOME`, dedup across configs, Claude Code sections, unreadable and oversized configs, exit codes, and the SARIF output validated against the official SARIF 2.1.0 JSON schema (OASIS, errata 01, vendored in `tests/fixtures`). `scan` is run with process creation and sockets disabled.
+- Client paths per OS with a fake home and `APPDATA`/`XDG_CONFIG_HOME`, dedup across configs, Claude Code sections, unreadable and oversized configs, exit codes, SARIF validated against the official schema (vendored in `tests/fixtures`); `scan` runs with process creation and sockets disabled.
+- A URL with a token in its path, query and fragment is absent from every output of `inspect` and `scan`; ids stay the same when only the evidence changes.
 
 ## v0.8.1 (2026-10-14)
 
