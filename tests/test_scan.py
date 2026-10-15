@@ -372,9 +372,9 @@ def test_scan_never_prints_a_secret(machine):
 
 
 def test_system_names(monkeypatch):
-    for name, expected in (("Windows", "Windows"), ("Darwin", "Darwin"),
-                           ("Linux", "Linux"), ("FreeBSD", "Linux")):
-        monkeypatch.setattr(cli_module.platform, "system", lambda n=name: n)
+    for name, expected in (("win32", "Windows"), ("darwin", "Darwin"),
+                           ("linux", "Linux"), ("freebsd14", "Linux")):
+        monkeypatch.setattr(cli_module.sys, "platform", name)
         assert cli_module._system() == expected
 
 

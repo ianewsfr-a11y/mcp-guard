@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import platform
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -223,10 +223,11 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
 
 
 def _system() -> System:
-    name = platform.system()
-    if name == "Windows":
+    """From sys.platform: platform.system() runs `cmd /c ver` on Windows before
+    Python 3.12, and scan starts no process."""
+    if sys.platform == "win32":
         return "Windows"
-    return "Darwin" if name == "Darwin" else "Linux"
+    return "Darwin" if sys.platform == "darwin" else "Linux"
 
 
 @cli.command()
