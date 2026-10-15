@@ -110,4 +110,5 @@ def identity_findings(old: ServerIdentity, new: ServerIdentity, where: str) -> l
     if not changes:
         return []
     return [Finding(category=CATEGORY, risk=Risk.MEDIUM,
-                    evidence=f"server identity changed {where}: " + "; ".join(changes))]
+                    evidence=f"server identity changed {where}: " + "; ".join(changes),
+                    field="identity")]

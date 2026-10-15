@@ -95,7 +95,8 @@ def contradiction(tool: ToolSpec, ruleset: RuleSet) -> Finding | None:
         if found]
     return Finding(category=CATEGORY, risk=Risk.HIGH,
                    evidence=f"{' and '.join(claims)}, but the tool says "
-                            f"{'; '.join(words)}: a client may auto-approve it")
+                            f"{'; '.join(words)}: a client may auto-approve it",
+                   field="annotations")
 
 
 NON_BOOLEAN = "<non-boolean>"

@@ -342,7 +342,7 @@ def finding(rule: str, server: str | None, element: str, field: str,
             found: list[Signal], where: str | None = None) -> Finding:
     """`where` names the field in the evidence (default: the field path)."""
     return Finding(category=rule, risk=severity(found),
-                   evidence=evidence(where or field, found),
+                   evidence=evidence(where or field, found), field=field,
                    id=finding_id(rule, server, element, field))
 
 

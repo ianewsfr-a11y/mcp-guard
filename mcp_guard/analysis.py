@@ -20,7 +20,7 @@ from .redact import (
     redact_value,
     safe_url,
     secret_arg,
-    secret_args,
+    secret_args_at,
     strip_url_credentials,
 )
 from .rules import DEFAULT_RULESET, RuleSet
@@ -61,28 +61,28 @@ def analyze_tool(tool: ToolSpec, ruleset: RuleSet = DEFAULT_RULESET,
 # --------------------------------------------------------------------------- #
 
 
-def _secret(evidence: str) -> Finding:
-    return Finding(category="hardcoded-secret", risk=Risk.HIGH, evidence=evidence)
+def _secret(evidence: str, field: str) -> Finding:
+    return Finding(category="hardcoded-secret", risk=Risk.HIGH, evidence=evidence, field=field)
 
 
 def _secret_findings(server: ServerSpec) -> list[Finding]:
     findings = [
-        _secret(f"{source} {key}={redact_value(str(value))}")
+        _secret(f"{source} {key}={redact_value(str(value))}", f"{source}:{key}")
         for source, mapping in (("env", server.env), ("header", server.headers))
         for key, value in mapping.items()
         if is_secret_key(key) and is_literal(str(value))
     ]
     previous = None
-    for arg in map(str, server.args):
+    for index, arg in enumerate(map(str, server.args)):
         found = secret_arg(arg, previous)
         if found:
-            findings.append(_secret(found[0]))
+            findings.append(_secret(found[0], f"args[{index}]"))
         previous = arg
     if server.url:
         parts = urlsplit(server.url)
         if parts.password:
-            findings.append(_secret("url credentials in userinfo"))
-        findings += [_secret(f"url ?{key}={redact_value(value)}")
+            findings.append(_secret("url credentials in userinfo", "url:userinfo"))
+        findings += [_secret(f"url ?{key}={redact_value(value)}", f"url:?{key}")
                      for key, value in parse_qsl(parts.query)
                      if is_secret_key(key) and is_literal(value)]
     return findings
@@ -92,8 +92,9 @@ def _secret_in_args(server: ServerSpec) -> list[Finding]:
     """Secrets `hardcoded-secret` cannot name, but that the command pin masks.
     Also a warning about the lock: its HMAC is keyed with a salt stored in
     the same file, so a guessable value can be recovered from it."""
-    return [Finding(category="secret-in-args", risk=Risk.MEDIUM, evidence=evidence)
-            for evidence in secret_args([str(a) for a in server.args])]
+    return [Finding(category="secret-in-args", risk=Risk.MEDIUM, evidence=evidence,
+                    field=f"args[{index}]")
+            for index, evidence in secret_args_at([str(a) for a in server.args])]
 
 
 def _transport_findings(server: ServerSpec) -> list[Finding]:
@@ -101,15 +102,15 @@ def _transport_findings(server: ServerSpec) -> list[Finding]:
     parts = urlsplit(server.url)
     if parts.scheme == "http" and parts.hostname not in _LOOPBACK_HOSTS:
         findings.append(Finding(category="insecure-transport", risk=Risk.MEDIUM,
-                                evidence=safe_url(server.url)))
+                                evidence=safe_url(server.url), field="url"))
     broad = [str(a) for a in server.args if _BROAD_PATHS.match(str(a))]
     if broad:
         findings.append(Finding(category="broad-filesystem-scope", risk=Risk.HIGH,
-                                evidence=", ".join(broad)))
+                                evidence=", ".join(broad), field="args"))
     flags = [str(a) for a in server.args if _DANGEROUS_FLAG.match(str(a))]
     if flags:
         findings.append(Finding(category="privileged-access", risk=Risk.CRITICAL,
-                                evidence=", ".join(flags)))
+                                evidence=", ".join(flags), field="args"))
     return findings
 
 
@@ -150,7 +151,7 @@ def malformed_entry(kind: Literal["server", "tool"], name: str, fields: str,
                     server: str | None = None) -> AuditEntry:
     return AuditEntry(kind=kind, name=name, server=server, findings=(Finding(
         category="malformed-entry", risk=Risk.MEDIUM,
-        evidence=f"could not be parsed ({fields}), audit it manually"),))
+        evidence=f"could not be parsed ({fields}), audit it manually", field="entry"),))
 
 
 def malformed(kind: Literal["server", "tool"], name: str,

@@ -26,6 +26,31 @@ def visible(text: str) -> str:
     return _CONTROL.sub("", str(text))
 
 
+HIDDEN = "[…]"  # what replaces the path, query and fragment of a URL
+# The host stops at what may start a path (`\` too: browsers read it as `/`),
+# at `%` and `;`; an IPv6 host is bracketed. Whatever follows it is hidden.
+_URL = re.compile(r"(?<![A-Za-z+.-])([A-Za-z][A-Za-z0-9+.-]*)://"
+                  r"((?:\[[^\]\s/]*\]|[^\s/?#\\\"'<>()\[\]{}|^`%;])*)"
+                  r"([/?#\\%;][^\s\"'<>]*)?")
+_TRAILING = ".,;:!)]}"  # punctuation after a URL, not part of it
+
+
+def _origin(match: re.Match[str]) -> str:
+    scheme, authority, rest = match.group(1), match.group(2), match.group(3) or ""
+    host = authority.rsplit("@", 1)[-1]  # userinfo never shown
+    kept = rest[len(rest.rstrip(_TRAILING)):]
+    rest = rest.rstrip(_TRAILING)
+    hidden = HIDDEN if rest not in ("", "/") else rest
+    return f"{scheme}://{host}{hidden}{kept}"
+
+
+def redact_urls(text: str) -> str:
+    """Every URL in `text` reduced to its scheme and host (and port): a
+    token in the path, the query or the fragment never reaches a report.
+    `https://h.example/mcp/abc?key=x` reads `https://h.example[…]`."""
+    return _URL.sub(_origin, text) if "://" in text else text
+
+
 def escaped(text: str) -> str:
     r"""ASCII-only form where every non-ASCII or control character is written
     as a Python escape (`\u200b`, `\u0435`), so two strings that look

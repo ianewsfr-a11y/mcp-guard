@@ -47,9 +47,10 @@ _ONCE = frozenset({"lock", "analysis"})
 
 
 class Reporter:
-    """Writes `mcp-guard:` lines on stderr from any thread. Notes and lock or
-    analysis findings are written once; session findings every time, with
-    `(occurrence n)` from the second identical one."""
+    """Writes `mcp-guard:` lines on stderr from any thread. Notes are written
+    once per text. Lock or analysis findings are written once per (where,
+    category, item, field), whatever their evidence; session findings every
+    time, with `(occurrence n)` from the second identical line."""
 
     def __init__(self, stream: IO[str] | None = None) -> None:
         self._stream = stream
@@ -65,7 +66,8 @@ class Reporter:
         line = (f"{PREFIX}[{finding.risk.name}] {finding.category}{context} "
                 f"{printable(label, 120)}: {printable(finding.evidence, 600)}")
         if where in _ONCE:
-            self._write(line)
+            key = f"finding\x00{where}\x00{finding.category}\x00{label}\x00{finding.field}"
+            self._write(line, key=key)
         else:
             self._write(self._counted(line), once=False)
 
@@ -92,14 +94,16 @@ class Reporter:
             except (OSError, ValueError):
                 pass  # stderr gone: nothing to relay to
 
-    def _write(self, line: str, once: bool = True) -> None:
+    def _write(self, line: str, once: bool = True, key: str | None = None) -> None:
+        """`key` (default: the line) is what makes a line already written."""
+        key = line if key is None else key
         with self._lock:
-            if once and line in self._seen:
+            if once and key in self._seen:
                 return
             if once and len(self._seen) >= _MAX_SEEN:
                 self._seen.clear()  # a line may then repeat; memory stays bounded
             if once:
-                self._seen.add(line)
+                self._seen.add(key)
             try:
                 stream = self._stream or sys.stderr
                 stream.write(line + "\n")
