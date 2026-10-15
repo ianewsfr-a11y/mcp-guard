@@ -22,8 +22,12 @@ class Discovered(NamedTuple):
 # Loading
 # --------------------------------------------------------------------------- #
 
-_JSON_STRING = r'("(?:\\.|[^"\\])*")'
-_COMMENTS = re.compile(_JSON_STRING + r"|//[^\n]*|/\*.*?\*/", re.DOTALL)
+# An unclosed string runs to the end of the text, matched once, as an unclosed
+# comment below: otherwise each quote of a hostile file rescans to the end.
+_JSON_STRING = r'("(?:\\[\s\S]|[^"\\])*(?:"|\\?\Z))'
+# An unclosed /* runs to the end of the text, matched once: a hostile file full of
+# /* without */ made the search quadratic.
+_COMMENTS = re.compile(_JSON_STRING + r"|//[^\n]*|/\*.*?(?:\*/|\Z)", re.DOTALL)
 _TRAILING_COMMAS = re.compile(_JSON_STRING + r"|,(\s*[}\]])")
 _YAML_SUFFIXES = frozenset({".yaml", ".yml"})
 

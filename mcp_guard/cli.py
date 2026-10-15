@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,8 @@ from rich.console import Console
 from rich.markup import escape
 
 from . import __version__, renderer
+from .clients import System
+from .clients import locations as client_locations
 from .collector import capture_live, collect, launch_plan
 from .diff import diff_snapshots
 from .formats import load_config
@@ -34,6 +38,8 @@ from .redact import secret_arg, secret_args
 from .rules import DEFAULT_RULESET, load_ruleset
 from .runtime.proxy import run_proxy
 from .sarif import to_sarif
+from .scan import scan as scan_machine
+from .scan_report import render_scan, scan_to_json, scan_to_sarif
 from .snapshot import MCPSnapshot
 from .text import printable
 from .ui import UIUnavailable, run_ui
@@ -213,6 +219,44 @@ def inspect(config_file: Path | None, servers: tuple[str, ...], fmt: str, as_jso
         _emit(json.dumps(report, indent=2), output)
 
     if fail_on != "none" and any(e.risk >= Risk[fail_on.upper()] for e in entries):
+        raise SystemExit(1)
+
+
+def _system() -> System:
+    name = platform.system()
+    if name == "Windows":
+        return "Windows"
+    return "Darwin" if name == "Darwin" else "Linux"
+
+
+@cli.command()
+@click.option("--json", "as_json", is_flag=True, help="JSON report.")
+@click.option("--sarif", "as_sarif", is_flag=True, help="SARIF 2.1.0 report.")
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path),
+              help="Write the json/sarif report to this file.")
+@click.option("--fail-on", type=_FAIL_CHOICES, default="high", show_default=True,
+              help="Exit with code 1 if a server reaches this risk level.")
+def scan(as_json: bool, as_sarif: bool, output: Path | None, fail_on: str) -> None:
+    """Audit the MCP configs of known clients on this machine (Claude Desktop,
+    Claude Code, Cursor, VS Code, Windsurf, Zed, Continue, Cline, Roo Code)
+    and of the current directory. Static: no server is started or contacted."""
+    if as_json and as_sarif:
+        raise InputError("choose --json or --sarif, not both")
+    if output is not None and not (as_json or as_sarif):
+        raise InputError("-o needs --json or --sarif")
+    searched = client_locations(Path.home(), Path.cwd(), os.environ, _system())
+    result = scan_machine(searched, DEFAULT_RULESET)
+    unread = [c for c in result.configs if c.status == "error"]
+    if unread:
+        stderr.print(f"[yellow]warning: {len(unread)} config(s) could not be read; their "
+                     "servers were not audited.[/]")
+    if as_json:
+        _emit(scan_to_json(result), output)
+    elif as_sarif:
+        _emit(json.dumps(scan_to_sarif(result, DEFAULT_RULESET), indent=2), output)
+    else:
+        render_scan(result)
+    if fail_on != "none" and any(s.risk >= Risk[fail_on.upper()] for s in result.servers):
         raise SystemExit(1)
 
 
