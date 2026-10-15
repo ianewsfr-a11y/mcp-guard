@@ -38,7 +38,7 @@ def _default_risks(ruleset: RuleSet) -> dict[str, Risk]:
     return risks
 
 
-def _rules(ruleset: RuleSet, entries: tuple[AuditEntry, ...]) -> list[dict[str, Any]]:
+def rule_descriptors(ruleset: RuleSet, entries: tuple[AuditEntry, ...]) -> list[dict[str, Any]]:
     risks = _default_risks(ruleset)
     for finding in (f for e in entries for f in e.findings):
         risks[finding.category] = max(finding.risk, risks.get(finding.category, Risk.LOW))
@@ -68,28 +68,30 @@ def _patterns(name: str) -> list[re.Pattern[str]]:
     return [re.compile(p, re.MULTILINE) for p in (
         rf'"name"\s*:\s*"{in_json}"',               # JSON tool, Continue entry
         rf'"{in_json}"\s*:\s*\{{',                  # JSON server key -> object
-        rf"^\s*-\s*name:\s*['\"]?{plain}['\"]?\s*$",  # YAML list item
-        rf"^\s*['\"]?{plain}['\"]?\s*:\s*$",        # YAML mapping key
+        # YAML: [ \t], not \s, which spans newlines (quadratic on blank lines)
+        rf"^[ \t]*-[ \t]*name:[ \t]*['\"]?{plain}['\"]?[ \t]*$",  # YAML list item
+        rf"^[ \t]*['\"]?{plain}['\"]?[ \t]*:[ \t]*$",            # YAML mapping key
     )]
 
 
-def _starts(text: str, name: str) -> list[int]:
-    return sorted({hit.start() for p in _patterns(name) for hit in p.finditer(text)})
+def _starts(text: str, name: str, after: int = 0) -> list[int]:
+    return sorted({hit.start() for p in _patterns(name) for hit in p.finditer(text, after)})
 
 
-def locate(text: str, name: str) -> int:
-    """1-based line where `name` is declared, or 1 if not found. A
-    de-duplicated name such as `Remote #2` maps to the 2nd declaration."""
-    starts, occurrence = _starts(text, name), 1
+def locate(text: str, name: str, after: int = 0) -> int:
+    """1-based line where `name` is declared (from offset `after`), or 1 if
+    not found. A de-duplicated name such as `Remote #2` maps to the 2nd
+    declaration."""
+    starts, occurrence = _starts(text, name, after), 1
     duplicate = _DUPLICATE_SUFFIX.match(name)
     if not starts and duplicate:
-        starts, occurrence = _starts(text, duplicate["base"]), int(duplicate["n"])
+        starts, occurrence = _starts(text, duplicate["base"], after), int(duplicate["n"])
     if len(starts) < occurrence:
         return 1
     return text.count("\n", 0, starts[occurrence - 1]) + 1
 
 
-def _result(entry: AuditEntry, finding: Finding, uri: str, line: int) -> dict[str, Any]:
+def finding_result(entry: AuditEntry, finding: Finding, uri: str, line: int) -> dict[str, Any]:
     rid = rule_id(finding.category)
     return {
         "ruleId": rid,
@@ -118,7 +120,7 @@ def _servers_line(text: str) -> int:
 
 def _config_result(entry: AuditEntry, finding: Finding, uri: str, text: str,
                    combined: CombinedResult | None) -> dict[str, Any]:
-    result = _result(entry, finding, uri, _servers_line(text))
+    result = finding_result(entry, finding, uri, _servers_line(text))
     servers = list(combined.servers) if combined else []
     if servers:
         result["relatedLocations"] = [
@@ -142,7 +144,7 @@ def to_sarif(entries: tuple[AuditEntry, ...], ruleset: RuleSet, uri: str,
     that of v0.6."""
     results = [
         _config_result(entry, finding, uri, text, combined) if entry.kind == "config"
-        else _result(entry, finding, uri, locate(text, entry.server or entry.name))
+        else finding_result(entry, finding, uri, locate(text, entry.server or entry.name))
         for entry in entries for finding in entry.findings
     ]
     run: dict[str, Any] = {
@@ -150,7 +152,7 @@ def to_sarif(entries: tuple[AuditEntry, ...], ruleset: RuleSet, uri: str,
             "name": "mcp-guard",
             "version": __version__,
             "informationUri": INFORMATION_URI,
-            "rules": _rules(ruleset, entries),
+            "rules": rule_descriptors(ruleset, entries),
         }},
         "results": results,
     }

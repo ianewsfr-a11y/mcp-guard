@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased (v0.9.0)
+
+### Added
+- **`mcp-guard scan`: one command for everything configured on the machine.** Without arguments, it looks for the MCP configs of Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Zed, Continue, Cline and Roo Code (user-level files, and project files in the current directory), audits each one with the same analysis as `inspect`, and groups the report by client, then by server. The list of paths is in the README; the ones that the client's official documentation does not confirm are marked "not verified" in the code and in the report.
+  - **Static only:** files are read, no server is started or contacted, no network request is made. A config larger than 10 MB, unreadable or not valid JSON/YAML is reported as "not read" and the scan goes on.
+  - **Claude Code:** in `~/.claude.json`, only the user-scope `mcpServers` and the local-scope `projects.<path>.mcpServers` are read, nothing else from that file.
+  - **A server configured in several places is audited once.** Two entries are the same server when their command, arguments, environment, headers and URL are equal (the only fields the analysis reads); names and client-specific fields such as `type` or `disabled` do not count. The report lists every place it appears.
+  - **`--json`**: `configs` (each file read, with its client, scope, status and servers), `servers` (each distinct server with its findings and every place it was found) and a `summary`. **`--sarif`**: a SARIF 2.1.0 log with the rules, one result per finding, located in the config where the server was first found, the other places as `relatedLocations`. `-o FILE` writes either report to a file.
+  - **Exit code:** 0 by default, as with `inspect` (`--fail-on none`). `--fail-on high` exits with 1 when a server reaches HIGH or above, for CI.
+  - **Paths checked against each client's official documentation or source** on 2026-10-15. Two clients moved their files: Windsurf, now Devin Desktop, documents `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\` on Windows), and Cline `~/.cline/data/settings/cline_mcp_settings.json`. Their former paths are still searched, marked "not verified", as are Claude Desktop on Linux, `~/.claude.json` on Windows, the VS Code profile `mcp.json` and Roo Code's file. VS Code's documented user file `~/.copilot/mcp-config.json` (or `$COPILOT_HOME`) is searched too.
+  - **In the current directory, a config that is a symbolic link is not followed** (a cloned repository could point it at any file of the user). The JSON and SARIF reports hold absolute paths; the terminal report shows `~`.
+- **`mcp-guard-audit` command**, the same CLI under the PyPI package name, so that `uvx mcp-guard-audit scan` works without installing anything.
+
+### Fixed
+- **Reading a hostile JSONC file no longer takes quadratic time** (`inspect` and `scan`). A file full of unclosed `/*` comments or unclosed strings kept the comment stripper busy for minutes within a few MB: an unclosed comment or string now runs to the end of the text, matched once. Valid JSON and JSONC read as before.
+- **SARIF line lookup is linear** on files with many blank lines (the YAML patterns no longer let `\s` span newlines).
+
+### Tests
+- Client paths per OS with a fake home and `APPDATA`/`XDG_CONFIG_HOME`, dedup across configs, Claude Code sections, unreadable and oversized configs, exit codes, and the SARIF output validated against the official SARIF 2.1.0 JSON schema (OASIS, errata 01, vendored in `tests/fixtures`). `scan` is run with process creation and sockets disabled.
+
 ## v0.8.1 (2026-10-14)
 
 ### Breaking

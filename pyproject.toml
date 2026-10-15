@@ -43,10 +43,11 @@ dependencies = [
 [project.optional-dependencies]
 ui = ["textual>=1.0.0"]  # the `mcp-guard ui` terminal interface
 dev = ["pytest>=8.0.0", "pytest-cov>=5.0.0", "ruff>=0.5", "mypy>=1.10", "types-PyYAML",
-       "textual>=1.0.0"]
+       "textual>=1.0.0", "jsonschema>=4.0"]
 
 [project.scripts]
 mcp-guard = "mcp_guard.cli:cli"
+mcp-guard-audit = "mcp_guard.cli:cli"  # the PyPI name, so `uvx mcp-guard-audit` works
 
 [project.urls]
 Homepage = "https://github.com/ianewsfr-a11y/mcp-guard"

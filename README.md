@@ -11,6 +11,37 @@
 
 By default it runs entirely offline and never executes the servers it audits. The opt-in `--live` mode starts them to read their real tools list.
 
+## Scan your machine
+
+```bash
+uvx mcp-guard-audit scan
+```
+
+One command, no argument: `scan` finds the MCP configs of the clients below (your user files, and the project files of the current directory), audits every server with the same checks as `inspect`, and prints the result by client, then by server. It is static: files are read, no server is started, no network request is made. A server configured in several clients is audited once and listed everywhere it appears.
+
+```bash
+mcp-guard scan --json -o scan.json      # configs, distinct servers with every location, summary
+mcp-guard scan --sarif -o scan.sarif    # SARIF 2.1.0, one result per finding
+```
+
+Exit code: 0 by default, whatever the findings, as with `inspect`. In CI, `mcp-guard scan --fail-on high` exits with 1 when a server reaches HIGH or above. A config that cannot be read is reported as "not read", with a warning, and does not change the exit code. The JSON and SARIF reports contain absolute paths (SARIF needs them), so your user name and project folders appear in them; the terminal report shows `~` instead.
+
+Clients and paths searched (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux). "Not verified" means the client's official documentation or source does not confirm that path (checked on 2026-10-15); it is searched anyway and marked so in the report.
+
+| Client | User config | Project config (current directory) |
+|---|---|---|
+| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`; Linux `~/.config/Claude/...` *not verified* | |
+| Claude Code | `~/.claude.json`: user servers and each project's local servers, nothing else from that file (Windows path *not verified*) | `.mcp.json` |
+| Cursor | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
+| VS Code | `~/.copilot/mcp-config.json` (or `$COPILOT_HOME`); the profile `Code/User/mcp.json` *not verified* (default profile only) | `.vscode/mcp.json` (`.mcp.json` is read once, as Claude Code's) |
+| Windsurf (Devin Desktop) | `%APPDATA%\devin\mcp_config.json`, `~/.config/devin/mcp_config.json`; former `~/.codeium/windsurf/mcp_config.json` *not verified* | |
+| Zed | `settings.json` (`context_servers`): `%APPDATA%\Zed`, `~/.config/zed` | |
+| Continue | `~/.continue/config.yaml` | |
+| Cline | `~/.cline/data/settings/cline_mcp_settings.json`; former `Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` *not verified* | |
+| Roo Code | `Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json` *not verified* | |
+
+In the current directory, a config that is a symbolic link is not followed: a cloned repository could point it at any of your files.
+
 ## ⚡ Quick Replication (Try it now)
 
 Audit a real MCP server in one command: the official reference **memory server** ([`@modelcontextprotocol/server-memory`](https://www.npmjs.com/package/@modelcontextprotocol/server-memory)). You need Python 3.10+ and Node.js (for `npx`).
@@ -481,6 +512,7 @@ collect (config, --live)  ->  MCPSnapshot  ->  analyze  ->  findings  ->  render
 - **`collector`** is the only code that reads raw config data or server answers. It produces an `MCPSnapshot` (`mcp_guard/snapshot.py`): each server with its spec, and with `--live` the tools, resources and prompts it declared. Each tool keeps its raw description, input schema, annotations and provenance (`tools[2]` in the file, or `tools/list[0]` from a server).
 - **`analyzer`** takes a snapshot and returns findings. Each finding has a stable `id`, also used as the SARIF fingerprint and present in `--format json`.
 - **`renderer`**, the CLI and the TUI only display.
+- **`scan`** builds on the same stages: `clients` lists the known config paths per OS (with the source that confirms each one), `scan` reads the files that exist and audits each distinct server once, `scan_report` renders the table, JSON and SARIF.
 
 `snapshot.canonical_json()` is a stable serialization (sorted keys, compact, ASCII) and `snapshot.digest` its SHA-256. Capture time, file path and mcp-guard version are left out, so two captures of an unchanged setup have the same digest. Serialized snapshots never contain a literal secret. Env and header values are replaced by `<redacted>` unless they are references such as `${env:API_KEY}`. Secrets in arguments, URLs (userinfo, query) and extra settings are redacted too. Re-analyzing a snapshot read back from JSON therefore reports secrets differently: analyze the capture itself.
 

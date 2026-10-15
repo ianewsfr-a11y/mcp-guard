@@ -50,7 +50,9 @@ def test_cli_entry_point_resolves(project):
     assert target == "mcp_guard.cli:cli"
     module, attr = target.split(":")
     command = getattr(importlib.import_module(module), attr)
-    assert {"inspect", "test-injection"} <= set(command.commands)
+    assert {"inspect", "scan", "test-injection"} <= set(command.commands)
+    # `uvx mcp-guard-audit scan` runs the executable named like the package
+    assert project["project"]["scripts"]["mcp-guard-audit"] == target
 
 
 @pytest.mark.unit
