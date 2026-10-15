@@ -7,7 +7,6 @@ import json
 from typing import Any
 
 from rich.console import Console
-from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -16,6 +15,7 @@ from .combined import MAX_LISTED, CombinedResult
 from .combined import RULE as COMBINED_RULE
 from .diff import CombinedDiff, FieldChange, ItemDiff, SnapshotDiff
 from .injection import ScenarioResult
+from .markup import escape
 from .models import AuditEntry, Risk
 from .payloads import CANARY, Payload
 from .poisoning import CATEGORY as POISONING

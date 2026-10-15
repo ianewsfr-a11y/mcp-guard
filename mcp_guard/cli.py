@@ -11,7 +11,6 @@ from typing import Any
 import click
 from pydantic import ValidationError
 from rich.console import Console
-from rich.markup import escape
 
 from . import __version__, renderer
 from .clients import System
@@ -31,6 +30,7 @@ from .lock import (
     read_lock,
     write_lock,
 )
+from .markup import escape
 from .models import ConfigFormatError, Risk, ServerSpec
 from .payloads import build_payloads
 from .pipeline import AuditRun, Loader, run_audit

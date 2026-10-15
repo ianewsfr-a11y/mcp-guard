@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (v0.9.1)
+
+### Fixed
+- **A text ending with a backslash is printed as written** in the terminal reports of `inspect`, `scan` and the other commands. Rich's markup escaping doubled a final backslash, so a Windows drive given to a server (`C:\`) read `C:\\` in `broad-filesystem-scope`. Untrusted text now goes through `mcp_guard.markup.escape`, which keeps Rich's protection against markup injection.
+
 ## v0.9.0 (2026-10-15)
 
 ### `mcp-guard scan`: everything configured on the machine, in one command
