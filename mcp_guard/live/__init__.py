@@ -100,7 +100,8 @@ def merge_live_results(entries: tuple[AuditEntry, ...], results: LiveResults,
     for name, outcome in results.items():
         if isinstance(outcome, LiveError):
             failures[("server", name)] = (Finding(
-                category="live-discovery-failed", risk=Risk.MEDIUM, evidence=str(outcome)),)
+                category="live-discovery-failed", risk=Risk.MEDIUM, evidence=str(outcome),
+                field="live"),)
         else:
             raw = outcome.tools if isinstance(outcome, Capture) else outcome
             tools += [audit_tool(i, t, ruleset, server=name) for i, t in enumerate(raw)]

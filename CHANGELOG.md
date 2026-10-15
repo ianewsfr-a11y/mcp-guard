@@ -2,6 +2,13 @@
 
 ## Unreleased (v0.9.0)
 
+### Breaking
+- **Finding ids changed, for every finding.** An id (also the SARIF `partialFingerprints` value and the `id` of the JSON reports) is now computed from the category, the item (server, tool) and the field the finding is about (`env:API_KEY`, `url`, `description`, `annotations.readOnlyHint`...), no longer from the evidence text. A finding now keeps its id when its evidence is reworded or redacted. GitHub code scanning will close the existing mcp-guard alerts once and open them again under the new fingerprints; JSON consumers that stored ids must re-baseline. Poisoning and `--combined` ids already ignored the evidence and do not change.
+- **The proxy deduplicates lock and analysis findings by (category, item, field)**, not by the text of the line. A second, different change of the same field since the lock is no longer written again: the session comparison reports it. Session findings are still all written, with `(occurrence n)`.
+
+### Changed
+- **URLs in finding evidence show only the scheme and the host** (and the port): the path, the query and the fragment are replaced by `[…]`, in every finding, whoever builds it (`insecure-transport`, poisoning evidence quoting a description, live errors, lock changes...). A token carried in the path or the query of a remote MCP URL (`https://host/mcp/<token>`, `?session=<token>`) no longer reaches the table, the JSON or the SARIF report. Userinfo was already removed.
+
 ### Added
 - **`mcp-guard scan`: one command for everything configured on the machine.** Without arguments, it looks for the MCP configs of Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Zed, Continue, Cline and Roo Code (user-level files, and project files in the current directory), audits each one with the same analysis as `inspect`, and groups the report by client, then by server. The list of paths is in the README; the ones that the client's official documentation does not confirm are marked "not verified" in the code and in the report.
   - **Static only:** files are read, no server is started or contacted, no network request is made. A config larger than 10 MB, unreadable or not valid JSON/YAML is reported as "not read" and the scan goes on.

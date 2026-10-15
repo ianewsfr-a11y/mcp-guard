@@ -196,7 +196,7 @@ class Session:
             self._report("analysis", self.server, Finding(
                 category="tool-changed", risk=Risk.HIGH,
                 evidence="a tool list nested too deeply to be fingerprinted: it was not "
-                         "compared with the lock or the previous list"))
+                         "compared with the lock or the previous list", field="tools/list"))
 
     def _diff(self, tools: tuple[Any, ...], server: str | None,
               contradicted: frozenset[str]) -> None:

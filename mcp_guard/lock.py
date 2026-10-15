@@ -256,8 +256,8 @@ def _add(changes: Changes, key: tuple[str, str], finding: Finding) -> None:
 _MISSING = object()
 
 
-def _changed(risk: Risk, evidence: str) -> Finding:
-    return Finding(category="tool-changed", risk=risk, evidence=evidence)
+def _changed(risk: Risk, evidence: str, field: str) -> Finding:
+    return Finding(category="tool-changed", risk=risk, evidence=evidence, field=field)
 
 
 def _shown(value: Any) -> str:
@@ -300,9 +300,9 @@ def _description_change(old: ToolPrint, new: ToolPrint, text: str | None) -> Fin
     if old.skeleton and old.skeleton == new.skeleton:
         detail = _hidden_characters(text) if text is not None else "see the current text"
         return _changed(Risk.HIGH, "description changed only by invisible characters, "
-                                     f"look-alike letters or formatting: {detail}")
+                                     f"look-alike letters or formatting: {detail}", "description")
     return _changed(Risk.HIGH, "description changed; locked description began: "
-                                 f"'{printable(old.preview, _PREVIEW)}'")
+                                 f"'{printable(old.preview, _PREVIEW)}'", "description")
 
 
 def _annotation_changes(old: ToolPrint, new: ToolPrint, contradicted: bool) -> list[Finding]:
@@ -310,10 +310,12 @@ def _annotation_changes(old: ToolPrint, new: ToolPrint, contradicted: bool) -> l
     note = ("; the tool now contradicts its own description (annotation-contradiction)"
             if contradicted else "")
     if hints:
-        return [_changed(Risk.HIGH, f"annotation {change}{note}") for change in hints]
+        return [_changed(Risk.HIGH, f"annotation {change}{note}",
+                         f"annotations.{change.split()[0].rstrip(':')}") for change in hints]
     if old.annotations is not None and new.annotations is not None \
             and old.annotations != new.annotations:
-        return [_changed(Risk.HIGH, f"annotations changed (not a security hint){note}")]
+        return [_changed(Risk.HIGH, f"annotations changed (not a security hint){note}",
+                         "annotations")]
     return []
 
 
@@ -324,14 +326,15 @@ def _tool_change(old: ToolPrint, new: ToolPrint, text: str | None = None,
     if old.description != new.description:
         findings.append(_description_change(old, new, text))
     if old.input_schema != new.input_schema:
-        findings.append(_changed(Risk.HIGH, "input schema changed"))
+        findings.append(_changed(Risk.HIGH, "input schema changed", "inputSchema"))
     findings += _annotation_changes(old, new, contradicted)
     if old.metadata != new.metadata:
         findings.append(
-            _changed(Risk.MEDIUM, "metadata changed (title, output schema...)")
+            _changed(Risk.MEDIUM, "metadata changed (title, output schema...)", "metadata")
             if old.annotations is not None else
             _changed(Risk.HIGH, "metadata (title, annotations, output schema...) changed; "
-                                "regenerate the lock (version 2) to see which annotation"))
+                                "regenerate the lock (version 2) to see which annotation",
+                     "metadata"))
     return findings
 
 
@@ -351,7 +354,7 @@ def _server_changes(locked: LockFile, current: LockFile, changes: Changes) -> No
         if parts:
             _add(changes, ("server", name), Finding(
                 category="server-changed", risk=Risk.HIGH,
-                evidence=" and ".join(parts) + " changed"))
+                evidence=" and ".join(parts) + " changed", field="launch"))
         if old.identity is not None and new.identity is not None:
             for finding in identity_findings(old.identity, new.identity, "since the lock"):
                 _add(changes, ("server", name), finding)

@@ -510,7 +510,7 @@ collect (config, --live)  ->  MCPSnapshot  ->  analyze  ->  findings  ->  render
 ```
 
 - **`collector`** is the only code that reads raw config data or server answers. It produces an `MCPSnapshot` (`mcp_guard/snapshot.py`): each server with its spec, and with `--live` the tools, resources and prompts it declared. Each tool keeps its raw description, input schema, annotations and provenance (`tools[2]` in the file, or `tools/list[0]` from a server).
-- **`analyzer`** takes a snapshot and returns findings. Each finding has a stable `id`, also used as the SARIF fingerprint and present in `--format json`.
+- **`analyzer`** takes a snapshot and returns findings. Each finding has a stable `id`, computed from its category, its item (server, tool) and its field (`env:API_KEY`, `url`, `description`...), never from the evidence text. It is also the SARIF fingerprint and is present in `--format json`. A URL in an evidence shows only its scheme and host: path, query and fragment become `[…]`, so a token carried in a remote MCP URL never reaches a report.
 - **`renderer`**, the CLI and the TUI only display.
 - **`scan`** builds on the same stages: `clients` lists the known config paths per OS (with the source that confirms each one), `scan` reads the files that exist and audits each distinct server once, `scan_report` renders the table, JSON and SARIF.
 

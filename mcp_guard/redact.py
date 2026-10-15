@@ -92,13 +92,19 @@ def secret_args(args: list[str]) -> list[str]:
     """Evidence for the arguments that look secret but that `hardcoded-secret`
     does not report (it covers `--api-key X`, `KEY=X` and URL passwords):
     credential words (`Bearer x`, `password=`) and token-like words."""
-    found, previous = [], None
+    return [evidence for _, evidence in secret_args_at(args)]
+
+
+def secret_args_at(args: list[str]) -> list[tuple[int, str]]:
+    """`secret_args` with the index of each argument."""
+    found: list[tuple[int, str]] = []
+    previous = None
     for index, arg in enumerate(args):
         if secret_arg(arg, previous) is None:
             reason = ("credential word" if SECRET_WORDS.search(arg)
                       else "token-like word" if _token(arg) else None)
             if reason:
-                found.append(f"arg {index}: {reason} (<redacted, {len(arg)} chars>)")
+                found.append((index, f"arg {index}: {reason} (<redacted, {len(arg)} chars>)"))
         previous = arg
     return found
 

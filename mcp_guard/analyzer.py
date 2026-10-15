@@ -73,7 +73,8 @@ def server_entry(server: ServerSnapshot, ruleset: RuleSet = DEFAULT_RULESET,
     entry = analyze_server(server.name, server.spec, ruleset)
     extra: tuple[Finding, ...] = ()
     if server.live_error is not None:
-        extra += (Finding(category=LIVE_FAILED, risk=Risk.MEDIUM, evidence=server.live_error),)
+        extra += (Finding(category=LIVE_FAILED, risk=Risk.MEDIUM, evidence=server.live_error,
+                          field="live"),)
     extra += surface_findings(server, known)
     if not extra:
         return entry

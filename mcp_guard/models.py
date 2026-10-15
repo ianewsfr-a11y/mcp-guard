@@ -15,6 +15,8 @@ from pydantic import (
     model_validator,
 )
 
+from .text import redact_urls
+
 
 class Risk(IntEnum):
     LOW = 0
@@ -37,33 +39,55 @@ class ConfigFormatError(ValueError):
 
 class Finding(BaseModel):
     """`id` is filled in when the finding is attached to an AuditEntry: it is
-    stable across runs and machines for the same issue on the same item."""
+    stable across runs and machines for the same issue on the same item.
+
+    `field` names what the finding is about within its item (`env:API_KEY`,
+    `url`, `description`...): with the category and the item, it makes the
+    id, never the evidence. Every URL in the evidence is reduced to its
+    scheme and host, whoever builds the finding."""
 
     model_config = ConfigDict(frozen=True)
 
     category: str
     risk: Risk
     evidence: str
+    field: str = ""
     id: str = ""
+
+    @field_validator("evidence")
+    @classmethod
+    def _no_url_details(cls, value: str) -> str:
+        return redact_urls(value)
 
 
 def label_of(name: str, server: str | None) -> str:
     return f"{server} > {name}" if server else name
 
 
-def finding_id(kind: str, label: str, finding: Finding) -> str:
-    """32 hex chars of SHA-256 over rule, item and evidence. The same value is
-    the SARIF partial fingerprint, so GitHub code scanning and JSON reports
-    agree on what is "the same finding". Two identical findings on two tools
-    with the same name and server share an id, as they did in SARIF."""
-    identity = f"mcp-guard/{finding.category}|{kind}|{label}|{finding.evidence}"
+def finding_id(kind: str, label: str, finding: Finding, occurrence: int = 1) -> str:
+    """32 hex chars of SHA-256 over rule, item (kind and label: server and
+    tool) and field, not the evidence: a finding keeps its id when its
+    evidence is reworded or redacted. The same value is the SARIF partial
+    fingerprint. The n-th finding of an item with the same rule and field
+    (n > 1) adds n, so ids stay distinct within an item. Two identical
+    findings on two tools with the same name and server share an id."""
+    identity = f"mcp-guard/{finding.category}|{kind}|{label}|{finding.field}"
+    if occurrence > 1:
+        identity += f"|{occurrence}"
     return hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 
-def _with_id(finding: Any, kind: Any, label: Any) -> Any:
-    if isinstance(finding, Finding) and not finding.id:
-        return finding.model_copy(update={"id": finding_id(str(kind), str(label), finding)})
-    return finding
+def _with_ids(findings: tuple[Any, ...], kind: Any, label: Any) -> tuple[Any, ...]:
+    seen: dict[tuple[str, str], int] = {}
+    result = []
+    for finding in findings:
+        if isinstance(finding, Finding) and not finding.id:
+            key = (finding.category, finding.field)
+            seen[key] = seen.get(key, 0) + 1
+            finding = finding.model_copy(update={"id": finding_id(
+                str(kind), str(label), finding, seen[key])})
+        result.append(finding)
+    return tuple(result)
 
 
 class AuditEntry(BaseModel):
@@ -84,7 +108,7 @@ class AuditEntry(BaseModel):
     def _stable_ids(self) -> AuditEntry:
         if all(f.id for f in self.findings):
             return self
-        findings = tuple(_with_id(f, self.kind, self.label) for f in self.findings)
+        findings = _with_ids(self.findings, self.kind, self.label)
         # frozen model: bypass __setattr__ once, during validation only
         object.__setattr__(self, "findings", findings)
         return self

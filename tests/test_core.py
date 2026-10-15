@@ -7,6 +7,7 @@ from click.testing import CliRunner
 import mcp_guard
 from mcp_guard import Risk, audit, discover, strip_jsonc, tokenize
 from mcp_guard.cli import cli
+from mcp_guard.text import HIDDEN
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "config_example.json"
@@ -244,7 +245,7 @@ def test_vscode_variable_references_are_not_secrets(value):
 def test_insecure_url_is_reported_without_query():
     entry = _server(url="http://h.example/mcp?session=abc")
     (finding,) = entry.findings
-    assert finding.evidence == "http://h.example/mcp"
+    assert finding.evidence == "http://h.example" + HIDDEN  # path and query hidden
 
 
 @pytest.mark.unit

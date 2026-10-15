@@ -215,7 +215,7 @@ def compare_pins(old: Pin, new: Pin) -> tuple[list[Finding], list[str]]:
     if changes:
         since = f" since {old.pinned_at or 'the lock'}"
         return [Finding(category=CATEGORY, risk=Risk.HIGH,
-                        evidence="; ".join(changes) + since)], notes
+                        evidence="; ".join(changes) + since, field="command")], notes
     if old.executable != new.executable:
         notes.append(f"same program at another path ({old.executable} -> {new.executable})")
     return [], notes
