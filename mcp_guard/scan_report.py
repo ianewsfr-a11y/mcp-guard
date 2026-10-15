@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.markup import escape
 
 from . import __version__
 from .clients import CLIENTS
+from .markup import escape
 from .models import Finding
 from .renderer import RISK_STYLES
 from .rules import RuleSet
