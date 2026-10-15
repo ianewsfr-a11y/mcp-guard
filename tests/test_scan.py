@@ -298,22 +298,23 @@ def test_cli_scan_exit_code_follows_the_highest_risk(machine):
     _write(path, {"mcpServers": {"remote": {"url": "http://mcp.example.test/mcp"}}})
     assert "MEDIUM" in _run().output and _run().exit_code == 0  # insecure-transport
     _write(path, {"mcpServers": {"keys": SECRET}})
-    assert _run().exit_code == 1  # hardcoded-secret: HIGH
+    assert _run().exit_code == 0  # default --fail-on none, as inspect
+    assert _run("--fail-on", "high").exit_code == 1  # hardcoded-secret: HIGH
     assert _run("--fail-on", "critical").exit_code == 0
 
 
-def test_cli_scan_groups_by_client_and_exits_1_on_high(machine):
+def test_cli_scan_groups_by_client_and_fails_on_high(machine):
     home, project = machine
     _write(_where(home, project, "Cursor"), {"mcpServers": {"shell": SHELL}})
     _write(_where(home, project, "Windsurf"), {"mcpServers": {"shell": SHELL}})
     _write(_where(home, project, "Claude Code", "project"), {"mcpServers": {"memory": MEMORY}})
-    result = _run()
+    result = _run("--fail-on", "high")
     assert result.exit_code == 1, result.output
     out = result.output
     assert out.index("Claude Code") < out.index("Cursor") < out.index("Windsurf")
     assert "same server as Cursor > shell" in out
     assert out.count("command-execution") == 1
-    assert _run("--fail-on", "none").exit_code == 0
+    assert _run().exit_code == 0
 
 
 def test_cli_scan_json(machine, tmp_path):
@@ -321,7 +322,7 @@ def test_cli_scan_json(machine, tmp_path):
     _write(_where(home, project, "Cursor"), {"mcpServers": {"shell": SHELL}})
     _write(_where(home, project, "VS Code", "project"), {"servers": {"sh": SHELL}})
     out = tmp_path / "scan.json"
-    assert _run("--json", "-o", str(out)).exit_code == 1
+    assert _run("--json", "-o", str(out)).exit_code == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["summary"] == {"configs": 2, "unreadable": 0, "server_entries": 2,
                                  "distinct_servers": 1,
@@ -336,7 +337,7 @@ def test_cli_scan_sarif_file_is_valid(machine, tmp_path):
     home, project = machine
     _write(_where(home, project, "Cursor"), {"mcpServers": {"shell": SHELL}})
     out = tmp_path / "scan.sarif"
-    assert _run("--sarif", "-o", str(out)).exit_code == 1
+    assert _run("--sarif", "-o", str(out), "--fail-on", "critical").exit_code == 1
     jsonschema.Draft4Validator(SCHEMA).validate(json.loads(out.read_text(encoding="utf-8")))
 
 

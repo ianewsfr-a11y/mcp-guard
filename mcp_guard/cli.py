@@ -235,12 +235,16 @@ def _system() -> System:
 @click.option("--sarif", "as_sarif", is_flag=True, help="SARIF 2.1.0 report.")
 @click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path),
               help="Write the json/sarif report to this file.")
-@click.option("--fail-on", type=_FAIL_CHOICES, default="high", show_default=True,
-              help="Exit with code 1 if a server reaches this risk level.")
+@click.option("--fail-on", type=_FAIL_CHOICES, default="none", show_default=True,
+              help="Exit with code 1 if a server reaches this risk level (for CI). "
+                   "By default the exit code is 0 whatever the findings, as in inspect.")
 def scan(as_json: bool, as_sarif: bool, output: Path | None, fail_on: str) -> None:
     """Audit the MCP configs of known clients on this machine (Claude Desktop,
     Claude Code, Cursor, VS Code, Windsurf, Zed, Continue, Cline, Roo Code)
-    and of the current directory. Static: no server is started or contacted."""
+    and of the current directory. Static: no server is started or contacted.
+
+    Exit code 0 unless --fail-on is given and a server reaches that level
+    (then 1); 2 for invalid options. Example for CI: scan --fail-on high."""
     if as_json and as_sarif:
         raise InputError("choose --json or --sarif, not both")
     if output is not None and not (as_json or as_sarif):

@@ -24,7 +24,7 @@ mcp-guard scan --json -o scan.json      # configs, distinct servers with every l
 mcp-guard scan --sarif -o scan.sarif    # SARIF 2.1.0, one result per finding
 ```
 
-Exit code: 0 when no config is found or no server reaches HIGH, 1 otherwise (`--fail-on` changes the threshold). A config that cannot be read is reported as "not read", with a warning, and does not change the exit code. The JSON and SARIF reports contain absolute paths (SARIF needs them), so your user name and project folders appear in them; the terminal report shows `~` instead.
+Exit code: 0 by default, whatever the findings, as with `inspect`. In CI, `mcp-guard scan --fail-on high` exits with 1 when a server reaches HIGH or above. A config that cannot be read is reported as "not read", with a warning, and does not change the exit code. The JSON and SARIF reports contain absolute paths (SARIF needs them), so your user name and project folders appear in them; the terminal report shows `~` instead.
 
 Clients and paths searched (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux). "Not verified" means the client's official documentation or source does not confirm that path (checked on 2026-10-15); it is searched anyway and marked so in the report.
 
