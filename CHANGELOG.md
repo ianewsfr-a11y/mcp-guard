@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Proxy journal: what an OpenTelemetry export needs (issue #29, step 1 of 2)
+- **Each entry of `proxy --record` now says how a call ended**, read from the message the proxy already parses, without keeping the bodies: the tool name on a client's `tools/call` (`tool`) and the prompt name on `prompts/get` (`prompt`); on a response, the method of the request it answers (`answers`) and its `outcome` (`ok`, `tool_error` for a tool result with `isError: true`, `error` with its JSON-RPC `error_code`, `input_required` for a 2026-07-28 multi round-trip request, `unrecognized_result`, `malformed`); on `notifications/cancelled`, the id of the request it cancels (`cancels`). The names follow the OpenTelemetry semantic conventions for MCP. Error messages, arguments and results are still never written without `--record-bodies`.
+- **A name is recorded only when it has the form of an MCP name** (letters, digits, `_`, `-`, `.`, at most 128): the client chooses it, so anything else, such as a token pasted as a tool name, is flagged as `tool_invalid` or `prompt_invalid` and not copied. A JSON-RPC batch is counted (`batch`), its members are not detailed. An integer id or error code too large to be one is not recorded.
+- **W3C trace context:** a `traceparent` in `params._meta` (MCP 2026-07-28, SEP-414) is recorded when valid, and flagged as `traceparent_invalid` otherwise, never copied. `tracestate` and `baggage` can carry arbitrary application data and are not recorded.
+- **The end line holds the server's exit code** (`server_exit`, `null` when the server did not start or the proxy was interrupted), to tell a server that stopped from a session that ended.
+- The export itself (`journal export --otlp`) is the next step.
+
 ## v0.9.1 (2026-10-15)
 
 ### Fixed

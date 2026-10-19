@@ -41,9 +41,9 @@ from ..lock import ToolPrint, diff_tools, tool_prints
 from ..models import Finding, Risk
 from ..rules import DEFAULT_RULESET
 from .context import LockContext
+from .outcome import CLIENT
 from .recorder import Recorder
 
-CLIENT, SERVER = "client->server", "server->client"
 QUEUE_SIZE = 1000
 QUEUE_BYTES = 64 * 1024 * 1024  # lines waiting for analysis, all together
 MAX_PENDING = 1000  # requests awaiting an answer

@@ -1,7 +1,8 @@
 """The proxy's journal: one JSON line per message, written by its own thread.
 
 By default an entry holds the time, the direction, the JSON-RPC method and
-id, the size and the SHA-256 of the message: enough to know what happened
+id, the size and the SHA-256 of the message, plus what `outcome.details`
+reads from it (tool, trace context, outcome): enough to know what happened
 without keeping what was said. `--record-bodies` adds the full message (it
 can hold secrets the server or the client exchanged; a warning says so).
 
@@ -25,25 +26,33 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any
 
+from .outcome import MAX_FIELD as _MAX_FIELD  # method and id come from the peer: capped
+from .outcome import Pending, details, peer_id
+
 QUEUE_SIZE = 1000
 QUEUE_BYTES = 64 * 1024 * 1024  # bodies waiting to be written, all together
-_MAX_FIELD = 128  # method and id come from the peer: capped
 
 Warn = Callable[[str], None]
 
 
-def entry(direction: str, line: bytes, message: Any, bodies: bool) -> dict[str, Any]:
+def entry(direction: str, line: bytes, message: Any, bodies: bool,
+          answers: str | None = None) -> dict[str, Any]:
     method = message.get("method") if isinstance(message, dict) else None
     ident = message.get("id") if isinstance(message, dict) else None
     data: dict[str, Any] = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
         "direction": direction,
         "method": method[:_MAX_FIELD] if isinstance(method, str) else None,
-        "id": (ident[:_MAX_FIELD] if isinstance(ident, str) else ident)
-        if isinstance(ident, (str, int)) else None, "size": len(line),
+        "id": peer_id(ident), "size": len(line),
         "sha256": hashlib.sha256(line).hexdigest()}
     if message is None:
         data["note"] = "not JSON"
+    if isinstance(message, list):  # a JSON-RPC batch: no details per member
+        data["batch"] = len(message)
+    try:
+        data.update(details(message, direction, answers))
+    except Exception:  # fail-open: the base entry is still written  # noqa: BLE001
+        data["note"] = "details not recorded (internal error)"
     if bodies:
         data["body"] = line.decode("utf-8", errors="replace")
     return data
@@ -60,6 +69,7 @@ class Recorder:
         self._queued = 0  # bytes of bodies waiting
         self._count = threading.Lock()
         self._stopping = threading.Event()
+        self._pending = Pending()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -84,7 +94,8 @@ class Recorder:
             self.dropped += 1
             return
         try:
-            self._queue.put_nowait(entry(direction, line, message, self._bodies))
+            answers = self._pending.answers(direction, message)
+            self._queue.put_nowait(entry(direction, line, message, self._bodies, answers))
         except queue.Full:
             self.dropped += 1
             return
@@ -115,14 +126,15 @@ class Recorder:
             self._failed = True
             self._warn(f"cannot write the journal ({exc}): recording stopped")
 
-    def close(self, timeout: float = 2.0) -> None:
-        """Write what is queued, for at most `timeout` seconds, then the end line."""
+    def close(self, timeout: float = 2.0, server_exit: int | None = None) -> None:
+        """Write what is queued, for at most `timeout` seconds, then the end line
+        with the server's exit code (None when it did not start or was killed)."""
         self._stopping.set()
         self._thread.join(timeout)
         if self._thread.is_alive():
             return  # still writing: do not interleave a last line
         self._write({"ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-                     "event": "end", "dropped": self.dropped})
+                     "event": "end", "dropped": self.dropped, "server_exit": server_exit})
         try:
             self._handle.close()
         except OSError:

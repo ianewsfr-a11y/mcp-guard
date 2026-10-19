@@ -12,6 +12,7 @@ Modes:
   meta      every result carries _meta serverInfo, its version bumped after
             the first tools/list
   crlf      ends every line with CRLF (Windows style), to check no translation
+In every mode, tools/call answers by tool name (see `call`).
 Every mode writes "fake server stderr" on stderr at start. EXIT_CODE sets the
 exit code used when stdin closes.
 """
@@ -66,6 +67,20 @@ def tools_list(request_id):
         send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed", "params": params})
 
 
+def call(request_id, name):
+    """tools/call: `fail` reports a tool error, `boom` a JSON-RPC error, `ask`
+    needs more input (2026-07-28), anything else succeeds."""
+    if name == "boom":
+        return {"jsonrpc": "2.0", "id": request_id,
+                "error": {"code": -32603, "message": "internal error"}}
+    value = {"content": [{"type": "text", "text": "done"}]}
+    if name == "fail":
+        value = {"content": [{"type": "text", "text": "failed"}], "isError": True}
+    elif name == "ask":
+        value = {"resultType": "input_required", "inputRequests": {}}
+    return result(request_id, value)
+
+
 def handle(message):
     method, request_id = message.get("method"), message.get("id")
     if request_id is None:
@@ -82,6 +97,8 @@ def handle(message):
         send(result(request_id, value))
     elif method == "tools/list":
         tools_list(request_id)
+    elif method == "tools/call":
+        send(call(request_id, (message.get("params") or {}).get("name")))
     else:
         send(result(request_id, {}))
 

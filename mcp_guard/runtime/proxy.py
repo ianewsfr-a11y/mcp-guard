@@ -30,7 +30,8 @@ from ..models import Finding
 from ..text import printable
 from . import context as lock_context
 from .frames import MAX_FRAME_BYTES, LineSplitter
-from .inspector import CLIENT, SERVER, Inspector, Session
+from .inspector import Inspector, Session
+from .outcome import CLIENT, SERVER
 from .recorder import Recorder
 
 CHUNK = 64 * 1024
@@ -296,12 +297,14 @@ def _finish(child: subprocess.Popen[bytes], readers: list[threading.Thread]) -> 
             stream.close()
 
 
-def _stop(inspector: Inspector, recorder: Recorder | None, note: Callable[[str], None]) -> None:
+def _stop(inspector: Inspector, recorder: Recorder | None, note: Callable[[str], None],
+          child: subprocess.Popen[bytes] | None = None) -> None:
     inspector.stop()
     if inspector.dropped:
         note(f"{inspector.dropped} message(s) forwarded without inspection (queue full)")
     if recorder is not None:
-        recorder.close()
+        returncode = child.returncode if child is not None else None
+        recorder.close(server_exit=None if returncode is None else exit_code(returncode))
 
 
 def run_proxy(command: str, args: list[str], lock_path: Path | None = None,
@@ -333,5 +336,5 @@ def run_proxy(command: str, args: list[str], lock_path: Path | None = None,
         raise
     finally:
         _restore_signals(previous)
-        _stop(inspector, recorder, note)
+        _stop(inspector, recorder, note, child)
     return exit_code(code)
