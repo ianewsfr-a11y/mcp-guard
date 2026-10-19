@@ -73,10 +73,14 @@ def _trace(params: dict[str, Any]) -> dict[str, Any]:
     return {"traceparent": valid} if valid else {"traceparent_invalid": True}
 
 
+def mcp_name(value: Any) -> str | None:
+    """A tool or prompt name in the MCP charset, or None."""
+    return value if isinstance(value, str) and _NAME.fullmatch(value) else None
+
+
 def _name(field: str, value: Any) -> dict[str, Any]:
-    if isinstance(value, str) and _NAME.fullmatch(value):
-        return {field: value}
-    return {f"{field}_invalid": True}
+    name = mcp_name(value)
+    return {field: name} if name else {f"{field}_invalid": True}
 
 
 def _request(method: str, params: Any, direction: str) -> dict[str, Any]:
