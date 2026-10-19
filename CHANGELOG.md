@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.10.0 (2026-10-19)
 
 ### Proxy journal: what an OpenTelemetry export needs (issue #29, step 1 of 2)
 - **Each entry of `proxy --record` now says how a call ended**, read from the message the proxy already parses, without keeping the bodies: the tool name on a client's `tools/call` (`tool`) and the prompt name on `prompts/get` (`prompt`); on a response, the method of the request it answers (`answers`) and its `outcome` (`ok`, `tool_error` for a tool result with `isError: true`, `error` with its JSON-RPC `error_code`, `input_required` for a 2026-07-28 multi round-trip request, `unrecognized_result`, `malformed`); on `notifications/cancelled`, the id of the request it cancels (`cancels`). The names follow the OpenTelemetry semantic conventions for MCP. Error messages, arguments and results are still never written without `--record-bodies`.
