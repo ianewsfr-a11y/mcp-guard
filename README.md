@@ -438,6 +438,23 @@ The proxy finds its lock entry from the command it runs. If no entry has the sam
 
 **Journal.** `--record session.jsonl` appends one line per message: time, direction, method, id, size and SHA-256. It also records how each call ended, without its content: the tool or prompt name (only when it has the form of an MCP name, so that free text a client puts there is not copied), the method a response answers and its `outcome` (`ok`, `tool_error` when a tool sets `isError`, `error` with its JSON-RPC code, `input_required`), the request a `notifications/cancelled` cancels, and the W3C `traceparent` a client or gateway put in `params._meta` (`tracestate` and `baggage` are not kept). The last line gives the server's exit code. The file is ASCII JSON, readable by its owner only. Recording never slows the traffic: when its queue is full, entries are dropped and counted. `--record-bodies` also keeps the full messages, which can contain secrets, and the file has no size limit.
 
+**Export to OpenTelemetry.** `mcp-guard journal export session.jsonl --otlp -o traces.json` turns a journal into OTLP/JSON traces for your collector or tracing backend. Nothing is sent over the network: you give it the file.
+- **One span per request.** A span is named after the method and the tool, as in `tools/call get_weather`. Its attributes follow the OpenTelemetry semantic conventions for MCP, which are still in development: `mcp.method.name`, `gen_ai.tool.name`, `jsonrpc.request.id`, `error.type`, `rpc.response.status_code`.
+- **Linked to the caller's trace.** When the request carried a `traceparent`, the span joins that trace as a child of the caller's span. Otherwise it is a local root, marked `mcp_guard.trace.origin = local`.
+- **How each call ended.** The span status is an error for:
+  - a tool error (`tool_error`);
+  - a JSON-RPC error (its code);
+  - a cancellation (`cancelled`);
+  - a server that stopped with the request pending (`mcp_guard.transport_failure`);
+  - no answer at all (`mcp_guard.no_response`).
+- **No bodies.** Message bodies are never exported, even from a journal recorded with `--record-bodies`.
+- **Fields are checked again on export,** since a journal file can be edited:
+  - a method or a string id that does not look like one is not exported;
+  - a line longer than 1 MB, or one that is not an entry, is skipped and counted.
+- **Ids.** Span ids are derived from a random salt, never from the messages. `--id-salt TEXT` makes an export repeatable.
+- **Private file.** The output file is readable by you only.
+- **Caller trace ids.** The file reveals the caller's trace ids, so load it into the backend those traces belong to. `--local-traces` ignores incoming traceparents: every request becomes a local root.
+
 **Limits:**
 - Inspection is bounded: 1,000 lines or 64 MB waiting, 2,000 tools per list, 16 MB per line. Beyond these limits a hostile server's messages are still forwarded but not inspected, and the proxy says so.
 - When the server is a launcher (`npx`, a `.cmd` file), stopping the proxy stops the launcher. Its children may stay behind.

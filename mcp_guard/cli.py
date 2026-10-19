@@ -20,6 +20,7 @@ from .diff import diff_snapshots
 from .formats import load_config
 from .injection import ScenarioResult, agent_command, build_scenarios, run_scenario
 from .inline import SOURCE_LABEL, servers_from_cli
+from .journal_cli import journal
 from .live import LiveError, LiveResults, describe_launch, launch_warnings
 from .lock import (
     DEFAULT_LOCK,
@@ -601,3 +602,6 @@ def proxy(lock_file: Path | None, record_file: Path | None, record_bodies: bool,
     """
     raise SystemExit(run_proxy(command[0], list(command[1:]), lock_file, record_file,
                                record_bodies, server_name))
+
+
+cli.add_command(journal)

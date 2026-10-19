@@ -7,7 +7,33 @@
 - **A name is recorded only when it has the form of an MCP name** (letters, digits, `_`, `-`, `.`, at most 128): the client chooses it, so anything else, such as a token pasted as a tool name, is flagged as `tool_invalid` or `prompt_invalid` and not copied. A JSON-RPC batch is counted (`batch`), its members are not detailed. An integer id or error code too large to be one is not recorded.
 - **W3C trace context:** a `traceparent` in `params._meta` (MCP 2026-07-28, SEP-414) is recorded when valid, and flagged as `traceparent_invalid` otherwise, never copied. `tracestate` and `baggage` can carry arbitrary application data and are not recorded.
 - **The end line holds the server's exit code** (`server_exit`, `null` when the server did not start or the proxy was interrupted), to tell a server that stopped from a session that ended.
-- The export itself (`journal export --otlp`) is the next step.
+
+### `mcp-guard journal export`: the journal as OpenTelemetry traces (issue #29, step 2 of 2)
+- **`journal export session.jsonl --otlp -o traces.json`** writes an OTLP/JSON trace export (`ExportTraceServiceRequest`) that a collector can load. Nothing is sent over the network. The export was checked against the official OTLP protobuf definitions.
+- **One span per request**, opened by the request and closed by its response, by a `notifications/cancelled` from the side that sent it, or by the end of the run. It is named `{mcp.method.name} {tool or prompt}` and carries the attributes of the OpenTelemetry semantic conventions for MCP (development status): `mcp.method.name`, `gen_ai.tool.name`, `gen_ai.operation.name`, `jsonrpc.request.id`, `network.transport`, `rpc.response.status_code`, `error.type`. It also carries `mcp_guard.*` attributes: direction, outcome, run and trace origin. Spans are of kind INTERNAL: the proxy observes, it is neither client nor server.
+- **Trace context:** a request that carried a valid `traceparent` joins that trace, as a child of the caller's span. Otherwise it is a local root, marked `mcp_guard.trace.origin = local`. Since MCP 2026-07-28 a connection is not a session, so local requests are not grouped under one trace; `mcp_guard.run` groups those of one proxy run.
+- **Status:** a span is an error for:
+  - `tool_error`;
+  - a JSON-RPC error (`error.type` is its code);
+  - `cancelled`;
+  - `mcp_guard.transport_failure`: the server exited with a non-zero code while the request was pending;
+  - `mcp_guard.no_response`: the run or the journal ended without an answer;
+  - `unrecognized_result` and `malformed`.
+
+  `input_required` is not an error.
+- **Bodies are never exported,** even from a journal recorded with `--record-bodies`.
+- **Every field is checked again on export,** since a journal can be edited:
+  - a method or string id outside a plain charset is not exported (`_OTHER`);
+  - an outcome the proxy never writes is `malformed`;
+  - a time before 1970 skips the line;
+  - a line longer than 1 MB, or nested too deeply to parse, is skipped and counted, and is not read whole.
+- **Requests not exported are counted in the summary:** an id reused while a request was still open closes that request as `no_response`, and requests past 100,000 open or 200,000 spans are dropped and counted.
+- **Ids and trace context:**
+  - span ids and local trace ids derive from a random salt and the entry's place in the journal, never from the message, so the export cannot be used to confirm a guess of a message's content;
+  - `--id-salt TEXT` makes an export repeatable;
+  - `--local-traces` ignores incoming traceparents.
+- **Output file:** it is written through a temporary file, readable by its owner only, and replaces a symbolic link instead of following it. It cannot be the journal itself.
+- **Several runs in one file:** journals of several runs appended to one file are told apart by their end lines.
 
 ## v0.9.1 (2026-10-15)
 
