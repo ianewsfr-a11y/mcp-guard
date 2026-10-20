@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### `journal export`
+- **The summary counts requests whose `traceparent` was malformed** (flagged by the proxy, or no longer valid in an edited journal). They are exported as local roots. Next to the "from an incoming trace / local" split, this shows a gateway or SDK upstream of the proxy that mangles the trace context (suggested on r/mcp).
+
+### Documentation
+- **README, Limits: a tool declared read-only is not a confined process.** Over stdio a server runs with the client's user session, home directory and inherited environment. mcp-guard reports what the config reveals about the launch, not what the process can reach; confining it is a sandbox's job.
+
 ## v0.10.0 (2026-10-19)
 
 ### Proxy journal: what an OpenTelemetry export needs (issue #29, step 1 of 2)

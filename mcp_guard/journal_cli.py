@@ -72,6 +72,9 @@ def _summary(result: Export) -> str:
     text = (f"{_plural(len(result.spans), 'span')}, {linked} from an incoming trace, "
             f"{len(result.spans) - linked} local; {_plural(result.skipped, 'line')} skipped, "
             f"{result.unmatched} answer(s) or cancellation(s) with no open request")
+    if result.invalid_traceparents:
+        count = result.invalid_traceparents
+        text += f"; {_plural(count, 'request')} had an invalid traceparent (exported as local)"
     if result.dropped:
         text += f"; {_plural(result.dropped, 'request')} not exported (limits reached)"
     if result.lost:

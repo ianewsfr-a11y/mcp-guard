@@ -68,6 +68,7 @@ class Export:
     unmatched: int  # responses and cancellations with no open request
     dropped: int  # requests not exported: too many open, or past MAX_SPANS
     lost: int = 0  # entries the proxy itself dropped (the `dropped` of its end lines)
+    invalid_traceparents: int = 0  # requests whose traceparent was malformed
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,14 @@ def _entry(text: str | None) -> tuple[dict[str, Any], int] | None:
     return (item, ts) if method is None or isinstance(method, str) else None
 
 
+def _invalid_trace(item: dict[str, Any]) -> bool:
+    """Flagged by the proxy, or no longer valid in an edited journal: an
+    upstream gateway or SDK that mangles the trace context shows here."""
+    if item.get("traceparent_invalid") is True:
+        return True
+    return "traceparent" in item and traceparent(item["traceparent"]) is None
+
+
 class _Reader:
     """Spans of one journal, run after run. Bounded by MAX_OPEN and MAX_SPANS."""
 
@@ -180,6 +189,7 @@ class _Reader:
         self.unmatched = 0
         self.dropped = 0
         self.lost = 0
+        self.invalid_traceparents = 0
 
     def finish(self, outcome: str, end: int) -> None:
         for opened in self.open.values():
@@ -193,6 +203,7 @@ class _Reader:
             self.dropped += 1
 
     def request(self, item: dict[str, Any], ts: int, line: int) -> None:
+        """Opens a span; `invalid_traceparents` counts only the spans kept."""
         opened = _open(item, ts, f"{self.run}:{line}", self.options)
         if opened is None:
             return
@@ -204,6 +215,8 @@ class _Reader:
             return
         self.cancelled.discard(opened.key)
         self.open[opened.key] = opened
+        if _invalid_trace(item):
+            self.invalid_traceparents += 1
 
     def cancel(self, item: dict[str, Any], ts: int) -> None:
         target = peer_id(item.get("cancels"))
@@ -266,7 +279,9 @@ def read_journal(lines: Iterable[str | None], options: Options = _DEFAULT) -> Ex
         reader.step(item, last, number)
     reader.finish("no_response", last)  # a journal cut short
     spans = tuple(sorted(reader.spans, key=lambda s: s.start_ns))
-    return Export(spans, skipped, reader.unmatched, reader.dropped, reader.lost)
+    return Export(spans=spans, skipped=skipped, unmatched=reader.unmatched,
+                  dropped=reader.dropped, lost=reader.lost,
+                  invalid_traceparents=reader.invalid_traceparents)
 
 
 def bounded_lines(handle: Any, limit: int = MAX_LINE) -> Iterable[str | None]:
