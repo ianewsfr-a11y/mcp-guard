@@ -543,3 +543,49 @@ def test_a_journal_that_is_not_a_regular_file_is_refused(tmp_path):
     os.mkfifo(fifo)
     result = CliRunner().invoke(cli, ["journal", "export", str(fifo)])
     assert result.exit_code == 2 and "not a regular file" in result.output
+
+
+# --- invalid traceparents (r/mcp, u/Ctbhatia) ------------------------------------------
+
+
+@pytest.mark.unit
+def test_requests_with_an_invalid_traceparent_are_counted():
+    export = read_journal(_lines(
+        _req(1, 1, traceparent_invalid=True),     # flagged by the proxy
+        _req(2, 2, traceparent="00-not-a-trace"),  # edited in the journal
+        _req(3, 3, traceparent=TRACE), _req(4, 4)))
+    assert export.invalid_traceparents == 2
+    assert [_attrs(s)["mcp_guard.trace.origin"] for s in export.spans] == [
+        "local", "local", "propagated", "local"]
+
+
+@pytest.mark.unit
+def test_the_summary_tells_invalid_traceparents(tmp_path):
+    journal = tmp_path / "session.jsonl"
+    journal.write_text("\n".join(_lines(_req(1, 1, traceparent_invalid=True),
+                                        _req(2, 2, traceparent=TRACE))) + "\n",
+                       encoding="utf-8")
+    result = CliRunner().invoke(cli, ["journal", "export", str(journal)])
+    assert "1 from an incoming trace" in result.output
+    assert "1 request had an invalid traceparent" in result.output
+    clean = tmp_path / "clean.jsonl"
+    clean.write_text(json.dumps(_req(1, 1)) + "\n", encoding="utf-8")
+    assert "invalid traceparent" not in CliRunner().invoke(
+        cli, ["journal", "export", str(clean)]).output
+
+
+@pytest.mark.unit
+def test_only_exported_requests_count_an_invalid_traceparent(monkeypatch):
+    notification = {**_req(1, None, method="notifications/progress"), "traceparent_invalid": True}
+    export = read_journal(_lines(notification, _req(2, 10**40, traceparent_invalid=True),
+                                 _req(3, 1, traceparent="")))
+    assert export.invalid_traceparents == 1 and len(export.spans) == 1
+    monkeypatch.setattr(journal_module, "MAX_OPEN", 1)
+    export = read_journal(_lines(_req(1, 1), _req(2, 2, traceparent_invalid=True)))
+    assert export.invalid_traceparents == 0 and export.dropped == 1
+
+
+@pytest.mark.unit
+def test_local_traces_still_count_invalid_traceparents():
+    export = read_journal(_lines(_req(1, 1, traceparent_invalid=True)), Options(propagate=False))
+    assert export.invalid_traceparents == 1

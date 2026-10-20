@@ -509,6 +509,8 @@ In CI, add `--fail-on critical` so a pull request that adds a shell-capable tool
 
 `mcp-guard` is a heuristic, pattern-based first pass. It reads declarations, not behavior: a tool named `get_weather` that secretly runs shell commands will look LOW, even in `--live` mode. Tool poisoning detection catches the known textual shapes of the attack, in English. A carefully worded instruction with none of them, another language, base64 or letter-spaced text will get through. Use it to triage and start the conversation, not as proof of safety.
 
+A tool declared read-only is not a confined process. The server runs with whatever its client gives it. Over stdio, that is your user session: your home directory, and the environment the client passes down (tokens, cloud credentials, SSH agent). mcp-guard reports what the config reveals about the launch (`broad-filesystem-scope`, `privileged-access`, `hardcoded-secret`, `secret-in-args`), but it does not see or limit what the process can reach. A report with no finding means nothing alarming in the config, not a server that can only read. Constraining the process is a sandbox's job (a container, Docker MCP Gateway, ToolHive, bubblewrap).
+
 ## Development
 
 ```bash
