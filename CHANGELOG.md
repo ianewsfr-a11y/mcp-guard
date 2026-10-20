@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.10.1 (2026-10-20)
 
 ### `journal export`
 - **The summary counts requests whose `traceparent` was malformed** (flagged by the proxy, or no longer valid in an edited journal). They are exported as local roots. Next to the "from an incoming trace / local" split, this shows a gateway or SDK upstream of the proxy that mangles the trace context (suggested on r/mcp).
