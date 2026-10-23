@@ -20,7 +20,7 @@ from ..snapshot import ServerSnapshot, ToolSnapshot
 from ..text import printable
 
 LOCK_CATEGORIES = frozenset({"tool-changed", "server-changed", "tool-added", "server-added",
-                             "tool-removed", "server-removed"})
+                             "tool-removed", "server-removed", "instructions-changed"})
 _RISK_STYLES_DARK = {Risk.CRITICAL: "bold red", Risk.HIGH: "bold magenta",
                      Risk.MEDIUM: "yellow", Risk.LOW: "green"}
 _RISK_STYLES_LIGHT = {Risk.CRITICAL: "bold red3", Risk.HIGH: "bold dark_magenta",

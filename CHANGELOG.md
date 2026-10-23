@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Lock and proxy: server instructions (issue #33)
+- **The lock pins the server's `instructions`** (from `initialize`, or `server/discover` on the 2026-07-28 revision). Clients may put them in the system prompt and they never appear in `tools/list`, so a rug pull that only rewrote them passed `inspect --lock`. A live lock now keeps their hash, never their text (lock format 3).
+- **`instructions-changed`**, a new category: HIGH when the instructions changed or appeared, LOW when they were removed. `inspect --lock` reports it against the lock.
+- **The proxy compares them too**, with the lock and within the session, and checks new text for poisoning (`server-instruction-poisoning`). A `server/discover` result without `instructions` is not taken as a removal.
+- **Format 2 locks are still read** and compared without instructions. `lock --update` migrates them to format 3 and records the instructions as they are now. Raised on r/mcp.
+
 ## v0.10.1 (2026-10-20)
 
 ### `journal export`

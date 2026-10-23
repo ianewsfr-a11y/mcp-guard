@@ -120,6 +120,10 @@ BUILTIN_CHECKS: dict[str, str] = {
     "identity-changed": ("The server announces another name, version or capabilities than "
                          "in the lock file or earlier in the session (an upgrade, or the "
                          "moment a rug pull would happen)."),
+    "instructions-changed": ("The instructions the server sends to the model at "
+                             "initialization differ from the lock file or from earlier in "
+                             "the session (possible rug pull: clients may put them in the "
+                             "system prompt)."),
     "secret-in-args": ("A launch argument looks like a credential (a bearer token, a "
                        "password in a connection string, a long random token). It shows in "
                        "process lists, and the lock's salted HMAC of the arguments can be "

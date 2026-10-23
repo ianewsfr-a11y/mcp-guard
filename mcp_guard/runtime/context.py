@@ -40,6 +40,7 @@ class LockContext(BaseModel):
     version: int = 2
     tools: tuple[ToolPrint, ...] | None = None  # None: the lock has no live tools
     identity: ServerIdentity | None = None
+    instructions: str | None = None  # hash (lock v3, live); None: nothing to compare
     pin_findings: tuple[Finding, ...] = ()
 
 
@@ -87,7 +88,9 @@ def _context(lock: LockFile, server: str, pin: Pin, warn: Warn) -> LockContext:
         warn("the lock was made without --live: it has no tools to compare; "
              "comparing within this session only")
     return LockContext(server=server, version=lock.version, tools=tools,
-                       identity=entry.identity, pin_findings=tuple(findings))
+                       identity=entry.identity,
+                       instructions=entry.instructions if lock.mode == "live" else None,
+                       pin_findings=tuple(findings))
 
 
 def load(lock_path: Path | None, command: str, args: list[str], name: str | None,

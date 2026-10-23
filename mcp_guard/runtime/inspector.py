@@ -15,6 +15,9 @@
   the lock and with the last list seen before, and every finding is written
   again, marked "after a server identity change". Poisoning and
   contradiction findings are written again once too, then deduplicated.
+- Server instructions, from `initialize` (or a `server/discover` result
+  that carries them): compared with the lock (v3) and within the session
+  (`instructions-changed`), and checked for poisoning whenever they are new.
 - `resultType` (2026-07-28) may be present or absent; nothing is rewritten.
 
 Lines are queued without blocking: a full queue (1000 lines or 64 MB)
@@ -34,11 +37,15 @@ from collections.abc import Callable
 from typing import Any
 
 from ..analysis import analyze_tool
+from ..analyzer import INSTRUCTIONS
 from ..annotations import CATEGORY as CONTRADICTION
 from ..collector import tool_snapshot
 from ..identity import ServerIdentity, identity_findings, identity_from, merged
-from ..lock import ToolPrint, diff_tools, tool_prints
+from ..live.protocol import instructions_text
+from ..lock import ToolPrint, diff_tools, instructions_findings, instructions_print, tool_prints
 from ..models import Finding, Risk
+from ..poisoning import finding as poisoning_finding
+from ..poisoning import signals
 from ..rules import DEFAULT_RULESET
 from .context import LockContext
 from .outcome import CLIENT
@@ -94,6 +101,7 @@ class Session:
         self._pages: list[Any] = []
         self._previous: list[ToolPrint] | None = None
         self._identity: ServerIdentity | None = None
+        self._instructions: str | None = None  # hash of the last instructions seen
         self._announced = False
         self._rearmed = False  # an identity change: the next comparison is complete
         self.listings = 0
@@ -123,6 +131,9 @@ class Session:
         kind = self._pending.pop(_key(message["id"]), None)
         result = message.get("result")
         self._observe_identity(result, kind)
+        if isinstance(result, dict) and (kind == "initialize" or (
+                kind == "server/discover" and "instructions" in result)):
+            self._observe_instructions(result)
         if kind == "tools/list" and isinstance(result, dict):
             self._page(result)
 
@@ -158,6 +169,27 @@ class Session:
             self._report(where, self.server, finding)
         self._rearmed = self._rearmed or bool(changes)
         self._identity = current
+
+    def _observe_instructions(self, result: dict[str, Any]) -> None:
+        """Compare the instructions with the session's previous ones, or with
+        the lock the first time; check new text for poisoning."""
+        text = instructions_text(result.get("instructions"))
+        current = instructions_print(text)
+        if self._instructions is not None:
+            where, changes = "session", instructions_findings(
+                self._instructions, current, "during this session")
+        else:
+            where, changes = "lock", instructions_findings(
+                self.context.instructions, current, "since the lock")
+        for finding in changes:
+            self._report(where, self.server, finding)
+        if text and current != self._instructions:
+            known = frozenset(t.name for t in self._previous or ())
+            hits = signals(text, known)
+            if hits:
+                self._report("analysis", self.server, poisoning_finding(
+                    INSTRUCTIONS, self.context.server, self.server, "instructions", hits))
+        self._instructions = current
 
     def _page(self, result: dict[str, Any]) -> None:
         tools = result.get("tools")
