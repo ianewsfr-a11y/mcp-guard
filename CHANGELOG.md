@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Approval log (issue #34)
+- **`lock --approvals FILE`** appends who approved a lock change to an append-only JSON Lines log: time, approver (`--approver`, else the OS user), `--reason`, the SHA-256 of the lock before and after, and the changes approved over the previous lock (item, category, field, risk; never descriptions or secrets). Suggested on r/mcp: the pull request keeps the review context, the log stays easy to query.
+- **Each line holds the SHA-256 of the previous one.** `mcp-guard approvals FILE` lists the approvals (`--json` too) and exits with 1 when a line was edited, inserted or removed.
+- Opt-in: nothing is written without `--approvals`.
+
 ## v0.11.0 (2026-10-23)
 
 ### Lock and proxy: server instructions (issue #33)

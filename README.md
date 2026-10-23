@@ -403,6 +403,17 @@ The arguments' HMAC is keyed by the lock's `salt`, which is stored in the lock i
 
 With `--live`, it also records the server's `identity`: its name and version, and a hash of its capabilities. `inspect --lock` compares the identity (`identity-changed` MEDIUM). `proxy` compares both, see below.
 
+**Who approved it.** A failing `inspect --lock` says that something changed, not who accepted it. Keep the lock diff in the pull request for review, and add `--approvals FILE` to record each approval in an append-only log (JSON Lines):
+
+```bash
+mcp-guard lock mcp.json --live --approvals mcp-guard.approvals.jsonl   --approver alice --reason "notes server 2.1, description reviewed"
+mcp-guard approvals mcp-guard.approvals.jsonl     # list them, check the chain
+```
+
+- **Each line holds** the time, the approver (`--approver`, else the OS user), the reason, the SHA-256 of the lock before and after, and what the new lock approves over the previous one: item, category, field and risk. It never holds descriptions or secrets. `compared: false` means the previous lock could not be compared (unreadable, other mode).
+- **Lines are chained:** each one holds the SHA-256 of the line before. `mcp-guard approvals` exits with 1 if a line was edited, inserted or removed. Removing the last lines leaves no trace, so commit the log or ship it elsewhere.
+- **Opt-in:** nothing is written without `--approvals`. `lock --update` records a migration too, with no change.
+
 ### `proxy`: watch a server while you use it
 
 **The proxy prevents nothing; it makes changes visible.** (In French: « le proxy n'empêche rien, il rend visible ».) A server can behave during your audit and change later, in the middle of a session. Put mcp-guard between your client and a stdio server: it forwards every byte unchanged and tells you, on stderr, when what the server declares no longer matches what you approved.
