@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.11.0 (2026-10-23)
 
 ### Lock and proxy: server instructions (issue #33)
 - **The lock pins the server's `instructions`** (from `initialize`, or `server/discover` on the 2026-07-28 revision). Clients may put them in the system prompt and they never appear in `tools/list`, so a rug pull that only rewrote them passed `inspect --lock`. A live lock now keeps their hash, never their text (lock format 3).
