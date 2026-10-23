@@ -124,6 +124,13 @@ def list_tools(transport: Transport) -> list[Any]:
     return _paged(transport, "tools/list", "tools") if _declares(capabilities, "tools") else []
 
 
+def instructions_text(value: Any) -> str | None:
+    """The `instructions` of an initialize (or server/discover) result as
+    mcp-guard keeps them: a non-empty string, capped. The lock and the proxy
+    hash this same form."""
+    return value[:MAX_INSTRUCTIONS] if isinstance(value, str) and value else None
+
+
 def capture(transport: Transport) -> Capture:
     """Tools, resources and prompts the server declares, in one session."""
     init = _initialize(transport)
@@ -141,7 +148,6 @@ def capture(transport: Transport) -> Capture:
             warnings.append(f"{key}/list: {exc}")
     return Capture(tuple(tools), tuple(lists["resources"]), tuple(lists["prompts"]),
                    tuple(warnings),
-                   instructions[:MAX_INSTRUCTIONS]
-                   if isinstance(instructions, str) and instructions else None,
+                   instructions_text(instructions),
                    {k: init[k] for k in ("serverInfo", "capabilities", "protocolVersion")
                     if k in init} or None)

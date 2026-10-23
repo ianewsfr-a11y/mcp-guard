@@ -19,6 +19,12 @@ mapped), so a change made only of such characters is named as such.
 Severities: description, annotations or input schema HIGH, other metadata
 MEDIUM, added tool MEDIUM, removed tool LOW. Version 1 locks are still read;
 regenerate them to get the per-annotation detail.
+
+Version 3 (v0.11) also keeps, per live server, a hash of the `instructions`
+it sends at initialization (clients may put them in the system prompt, and
+they never appear in tools/list). The text itself is not stored. A change is
+`instructions-changed`: HIGH when they changed or appeared, LOW when they
+were removed. Version 2 locks are compared without them.
 """
 
 from __future__ import annotations
@@ -51,8 +57,8 @@ from .rules import RuleSet
 from .snapshot import MCPSnapshot, ToolSnapshot
 from .text import escaped, printable
 
-LOCK_VERSION = 2
-READABLE_VERSIONS = (1, 2)
+LOCK_VERSION = 3
+READABLE_VERSIONS = (1, 2, 3)
 DEFAULT_LOCK = "mcp-guard.lock"
 _PREVIEW = 80
 
@@ -101,6 +107,7 @@ class ServerPrint(BaseModel):
     settings: str
     identity: ServerIdentity | None = None  # live locks: serverInfo, capabilities
     pin: Pin | None = None  # stdio servers: what exactly runs (`lock` computes it)
+    instructions: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")  # v3, live
 
 
 class LockFile(BaseModel):
@@ -149,6 +156,12 @@ def server_print(server: ServerSpec, salt: str) -> ServerPrint:
     )
 
 
+def instructions_print(text: str | None) -> str:
+    """Hash of a server's instructions; servers that send none get the hash
+    of `null`, so that instructions appearing later are a change."""
+    return _sha256(text)
+
+
 # Cache hints (MCP 2026-07-28) change with no change of meaning: never hashed.
 _UNHASHED = frozenset({"name", "description", "inputSchema", "ttlMs", "cacheScope"})
 
@@ -195,8 +208,11 @@ def fingerprint(snap: MCPSnapshot, salt: str | None = None,
         if server.spec is not None:
             pin = (compute_pin(server.spec.command, [str(a) for a in server.spec.args], lock.salt)
                    if pins and server.spec.command else None)
+            instructions = (instructions_print(server.instructions)
+                            if version >= 3 and server.live_status == "captured" else None)
             lock.servers[server.name] = server_print(server.spec, lock.salt).model_copy(
-                update={"identity": server.identity, "pin": pin})
+                update={"identity": server.identity, "pin": pin,
+                        "instructions": instructions})
     lock.tools += _tool_prints(snap.tools, None, version)
     for server in snap.servers:
         if server.live_status == "captured":
@@ -245,8 +261,10 @@ def read_lock(path: Path) -> LockFile:
 # --- comparison -----------------------------------------------------------------
 
 Changes = dict[tuple[str, str], tuple[Finding, ...]]
+INSTRUCTIONS_CHANGED = "instructions-changed"
 LOCK_CATEGORIES = frozenset({"tool-changed", "server-changed", "tool-added", "server-added",
-                             "tool-removed", "server-removed"})
+                             "tool-removed", "server-removed", INSTRUCTIONS_CHANGED})
+_NO_INSTRUCTIONS = instructions_print(None)
 
 
 def _add(changes: Changes, key: tuple[str, str], finding: Finding) -> None:
@@ -338,6 +356,20 @@ def _tool_change(old: ToolPrint, new: ToolPrint, text: str | None = None,
     return findings
 
 
+def instructions_findings(old: str | None, new: str | None, where: str) -> list[Finding]:
+    """`instructions-changed` between two instruction hashes (None: not
+    recorded, nothing to compare)."""
+    if old is None or new is None or old == new:
+        return []
+    if new == _NO_INSTRUCTIONS:
+        return [Finding(category=INSTRUCTIONS_CHANGED, risk=Risk.LOW, field="instructions",
+                        evidence=f"the server no longer sends instructions ({where})")]
+    what = "appeared" if old == _NO_INSTRUCTIONS else "changed"
+    return [Finding(category=INSTRUCTIONS_CHANGED, risk=Risk.HIGH, field="instructions",
+                    evidence=f"the instructions the server sends to the model {what} "
+                             f"({where}); clients may put them in the system prompt")]
+
+
 def _server_changes(locked: LockFile, current: LockFile, changes: Changes) -> None:
     for name in current.servers.keys() - locked.servers.keys():
         _add(changes, ("server", name), Finding(category="server-added", risk=Risk.MEDIUM,
@@ -358,6 +390,9 @@ def _server_changes(locked: LockFile, current: LockFile, changes: Changes) -> No
         if old.identity is not None and new.identity is not None:
             for finding in identity_findings(old.identity, new.identity, "since the lock"):
                 _add(changes, ("server", name), finding)
+        for finding in instructions_findings(old.instructions, new.instructions,
+                                             "since the lock"):
+            _add(changes, ("server", name), finding)
 
 
 def _tool_changes(locked: LockFile, current: LockFile, unreachable: set[str],

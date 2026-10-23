@@ -264,8 +264,8 @@ def test_cli_lock_then_inspect_reports_a_toggle(tmp_path):
 @pytest.mark.unit
 def test_unknown_lock_versions_name_the_readable_ones(tmp_path):
     path = tmp_path / "x.lock"
-    path.write_text(json.dumps({"version": 3}), encoding="utf-8")
-    with pytest.raises(Exception, match="reads versions 1, 2"):
+    path.write_text(json.dumps({"version": 4}), encoding="utf-8")
+    with pytest.raises(Exception, match="reads versions 1, 2, 3"):
         read_lock(path)
 
 
@@ -386,20 +386,20 @@ def test_a_v0_6_lock_on_reordered_servers_shows_no_false_change(tmp_path):
 
 
 @pytest.mark.integration
-def test_lock_update_migrates_a_v1_lock_to_v2(tmp_path):
+def test_lock_update_migrates_a_v1_lock_to_v3(tmp_path):
     config, lock = _v1_copy(tmp_path)
     salt = json.loads(lock.read_text(encoding="utf-8"))["salt"]
     result = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock), "--update"])
     assert result.exit_code == 0, result.output
-    assert "from format 1 to 2: no change since it was written" in " ".join(result.output.split())
+    assert "from format 1 to 3: no change since it was written" in " ".join(result.output.split())
     migrated = json.loads(lock.read_text(encoding="utf-8"))
-    assert (migrated["version"], migrated["salt"]) == (2, salt)
+    assert (migrated["version"], migrated["salt"]) == (3, salt)
     assert list(migrated["servers"]) == ["alpha", "remote", "zeta"]
     hints = {t["name"]: t["hints"] for t in migrated["tools"]}
     assert hints["read_notes"] == {"readOnlyHint": True, "destructiveHint": False}
     assert _lock_diffs(config, lock) == []
     again = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock), "--update"])
-    assert again.exit_code == 0 and "from format 2 to 2" in " ".join(again.output.split())
+    assert again.exit_code == 0 and "from format 3 to 3" in " ".join(again.output.split())
 
 
 @pytest.mark.integration
