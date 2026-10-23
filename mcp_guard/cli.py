@@ -12,7 +12,7 @@ import click
 from pydantic import ValidationError
 from rich.console import Console
 
-from . import __version__, renderer
+from . import __version__, approvals, renderer
 from .clients import System
 from .clients import locations as client_locations
 from .collector import capture_live, collect, launch_plan
@@ -285,9 +285,16 @@ def scan(as_json: bool, as_sarif: bool, output: Path | None, fail_on: str) -> No
               help="Rewrite the existing lock (-o) in the current format. Refused if "
                    "anything changed since it was written: review with inspect --lock, "
                    "then run lock without --update.")
+@click.option("--approvals", "approvals_file", type=click.Path(dir_okay=False, path_type=Path),
+              help="Append who approved what to this append-only log (JSON Lines).")
+@click.option("--approver", metavar="NAME", help="With --approvals (default: the OS user).")
+@click.option("--reason", metavar="TEXT", help="With --approvals: why the change is approved.")
 def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live: bool,
-         assume_yes: bool, timeout: float, update: bool) -> None:
+         assume_yes: bool, timeout: float, update: bool, approvals_file: Path | None,
+         approver: str | None, reason: str | None) -> None:
     """Fingerprint servers and tools into a lock file, to detect rug pulls later."""
+    if (approver or reason) and approvals_file is None:
+        raise click.UsageError("--approver and --reason need --approvals FILE")
     data, source = _load_input(config_file, servers)
     static = _static_snapshot(data, source)
     results = _live_results(static, timeout, assume_yes) if live else None
@@ -295,11 +302,17 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
     if failed:
         details = "; ".join(f"{printable(n, 60)}: {e}" for n, e in failed.items())
         raise InputError(f"cannot lock, some servers could not be reached: {details}")
+    current = collect(data, source, results)
+    prior = _prior_lock(output, current) if approvals_file is not None else None
     if update:
-        _update_lock(collect(data, source, results), output)
+        _update_lock(current, output)
+    else:
+        snap = fingerprint(current, pins=True)
+        write_lock(snap, output)
+    if approvals_file is not None and prior is not None:
+        _record_approval(approvals_file, output, prior, approver, reason)
+    if update:
         return
-    snap = fingerprint(collect(data, source, results), pins=True)
-    write_lock(snap, output)
     _warn_secret_args(static)
     again = " --live" if live else ""
     target = (str(config_file) if config_file
@@ -308,6 +321,68 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
                  f"({snap.mode} mode) in {escape(str(output))}.\n"
                  f"Commit it, then check with: mcp-guard inspect "
                  f"{escape(printable(target, 300))} --lock {escape(str(output))}{again}")
+
+
+_Prior = tuple[bytes | None, list[tuple[str, Any]] | None]
+
+
+def _prior_lock(path: Path, current: MCPSnapshot) -> _Prior:
+    """The lock about to be replaced (bytes) and what the new one approves
+    over it; None for the changes when it cannot be compared."""
+    try:
+        before = path.read_bytes()
+    except FileNotFoundError:
+        return None, []
+    except OSError:
+        return None, None
+    try:
+        return before, changes_since(read_lock(path), current, DEFAULT_RULESET)
+    except (ConfigFormatError, RecursionError, ValueError):
+        return before, None
+
+
+def _record_approval(log: Path, output: Path, prior: _Prior, approver: str | None,
+                     reason: str | None) -> None:
+    before, changes = prior
+    try:
+        entry = approvals.append(log, approvals.Approval(
+            time="", approver=(approver or approvals.default_approver())[:approvals.MAX_TEXT],
+            reason=reason[:approvals.MAX_TEXT] if reason else None,
+            lock=output.name[:approvals.MAX_TEXT],
+            before=approvals.sha256(before) if before is not None else None,
+            after=approvals.sha256(output.read_bytes()), compared=changes is not None,
+            changes=approvals.approved_changes(changes or [])))
+    except (ConfigFormatError, OSError) as exc:
+        raise InputError(f"the lock was written, but not the approval: {exc}") from exc
+    stderr.print(f"Approval recorded in {escape(str(log))}: "
+                 f"{escape(approvals.describe(entry))}")
+
+
+@cli.command("approvals")
+@click.argument("log_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--json", "as_json", is_flag=True, help="Output the entries as JSON.")
+def approvals_cmd(log_file: Path, as_json: bool) -> None:
+    """List the approvals of a log written by `lock --approvals` and check its
+    chain. Exits with 1 if a line was edited, inserted or removed."""
+    try:
+        entries, problems = approvals.read_log(log_file)
+    except ConfigFormatError as exc:
+        raise InputError(str(exc)) from exc
+    if as_json:
+        click.echo(json.dumps([e.model_dump(mode="json", exclude_none=True) for e in entries],
+                              indent=2))
+    else:
+        for entry in entries:
+            click.echo(approvals.describe(entry))
+            for change in entry.changes:
+                field = f" ({printable(change.field, 80)})" if change.field else ""
+                click.echo(f"  [{change.risk.name}] {printable(change.category, 60)} "
+                           f"{printable(change.item, 120)}{field}")
+    for problem in problems:
+        stderr.print(f"[red]{escape(problem)}[/]")
+    if problems:
+        raise SystemExit(1)
+    stderr.print(f"{len(entries)} approval(s), chain intact.")
 
 
 def _warn_secret_args(snap: MCPSnapshot) -> None:
