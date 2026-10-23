@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.12.0 (2026-10-23)
 
 ### Approval log (issue #34)
 - **`lock --approvals FILE`** appends who approved a lock change to an append-only JSON Lines log: time, approver (`--approver`, else the OS user), `--reason`, the SHA-256 of the lock before and after, and the changes approved over the previous lock (item, category, field, risk; never descriptions or secrets). Suggested on r/mcp: the pull request keeps the review context, the log stays easy to query.
