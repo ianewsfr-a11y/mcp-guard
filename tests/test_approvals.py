@@ -149,3 +149,67 @@ def test_unreadable_logs_are_input_errors(tmp_path):
     with pytest.raises(approvals.ConfigFormatError):
         approvals.append(folder, approvals.Approval(time="t", approver="a", lock="l",
                                                     after="0" * 64))
+
+
+# --- v0.13: an anchor outside the log, and fail closed (#37) -------------------
+
+
+def _head(tmp_path):
+    result = CliRunner().invoke(cli, ["approvals", str(tmp_path / "approvals.jsonl"), "--head"])
+    assert result.exit_code == 0, result.output
+    return result.output.strip().splitlines()[0]
+
+
+@pytest.mark.integration
+def test_head_is_the_hash_the_next_entry_chains_to(tmp_path):
+    _lock(tmp_path, TOOLS)
+    head = _head(tmp_path)
+    assert head == approvals.sha256((tmp_path / "approvals.jsonl").read_bytes().splitlines()[-1])
+    _lock(tmp_path, CHANGED, "--expect-head", head.upper())
+    assert _entries(tmp_path)[1]["previous"] == head
+
+
+@pytest.mark.integration
+def test_a_removed_tail_is_refused_and_nothing_is_written(tmp_path):
+    _lock(tmp_path, TOOLS)
+    _lock(tmp_path, CHANGED)
+    head = _head(tmp_path)
+    log, lock = tmp_path / "approvals.jsonl", tmp_path / "mcp-guard.lock"
+    log.write_bytes(log.read_bytes().splitlines(keepends=True)[0])  # last line removed
+    assert CliRunner().invoke(cli, ["approvals", str(log)]).exit_code == 0  # the gap
+    lock_before, log_before = lock.read_bytes(), log.read_bytes()
+    config = _write(tmp_path / "tools.json", TOOLS)
+    result = CliRunner().invoke(cli, ["lock", str(config), "-o", str(lock),
+                                      "--approvals", str(log), "--expect-head", head])
+    assert result.exit_code == 2 and "does not end with the expected line" in result.output
+    assert (lock.read_bytes(), log.read_bytes()) == (lock_before, log_before)
+
+
+@pytest.mark.integration
+def test_a_broken_chain_is_refused_even_without_an_anchor(tmp_path):
+    _lock(tmp_path, TOOLS, "--approver", "alice")
+    _lock(tmp_path, CHANGED, "--approver", "bob")
+    log = tmp_path / "approvals.jsonl"
+    log.write_text(log.read_text(encoding="utf-8").replace("alice", "mallory"), encoding="utf-8")
+    config = _write(tmp_path / "tools.json", TOOLS)
+    result = CliRunner().invoke(cli, ["lock", str(config), "-o", str(tmp_path / "mcp-guard.lock"),
+                                      "--approvals", str(log)])
+    assert result.exit_code == 2 and "the chain is broken" in result.output
+    assert len(log.read_text(encoding="utf-8").splitlines()) == 2
+    head = CliRunner().invoke(cli, ["approvals", str(log), "--head"])
+    assert head.exit_code == 1 and "chain is broken" in head.output
+
+
+@pytest.mark.integration
+def test_expect_head_needs_a_log_and_a_hash(tmp_path):
+    config = _write(tmp_path / "tools.json", TOOLS)
+    lock = str(tmp_path / "x.lock")
+    alone = CliRunner().invoke(cli, ["lock", str(config), "-o", lock, "--expect-head", "a" * 64])
+    assert alone.exit_code == 2 and "need --approvals" in alone.output
+    bad = CliRunner().invoke(cli, ["lock", str(config), "-o", lock,
+                                   "--approvals", str(tmp_path / "a.jsonl"), "--expect-head", "x"])
+    assert bad.exit_code == 2 and "64 hex" in bad.output
+    missing = CliRunner().invoke(cli, ["lock", str(config), "-o", lock,
+                                       "--approvals", str(tmp_path / "a.jsonl"),
+                                       "--expect-head", "a" * 64])
+    assert missing.exit_code == 2 and not (tmp_path / "x.lock").exists()

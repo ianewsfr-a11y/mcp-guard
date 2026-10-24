@@ -412,6 +412,14 @@ mcp-guard approvals mcp-guard.approvals.jsonl     # list them, check the chain
 
 - **Each line holds** the time, the approver (`--approver`, else the OS user), the reason, the SHA-256 of the lock before and after, and what the new lock approves over the previous one: item, category, field and risk. It never holds descriptions or secrets. `compared: false` means the previous lock could not be compared (unreadable, other mode).
 - **Lines are chained:** each one holds the SHA-256 of the line before. `mcp-guard approvals` exits with 1 if a line was edited, inserted or removed. Removing the last lines leaves no trace, so commit the log or ship it elsewhere.
+- **Anchor the tail outside the log.** Removing the last lines breaks no chain. Keep the hash of the last line where the log cannot reach it (a CI variable, a tag, a ticket), and pass it on the next approval:
+
+  ```bash
+  HEAD=$(mcp-guard approvals mcp-guard.approvals.jsonl --head)   # store it elsewhere
+  mcp-guard lock mcp.json --live --approvals mcp-guard.approvals.jsonl --expect-head "$HEAD"
+  ```
+
+- **Fails closed:** `lock --approvals` writes neither the lock nor the log (exit 2) when the chain is broken, or when the log does not end with the `--expect-head` line. Only the approval step works this way; the proxy stays fail-open.
 - **Opt-in:** nothing is written without `--approvals`. `lock --update` records a migration too, with no change.
 
 ### `proxy`: watch a server while you use it

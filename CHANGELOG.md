@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Approval log: an anchor outside the log (issue #37)
+- **`mcp-guard approvals FILE --head`** prints the SHA-256 of the log's last line, to keep where the log cannot reach it (CI variable, tag, ticket). Removing the last lines breaks no chain; this anchor shows it.
+- **`lock --approvals FILE --expect-head HASH`** refuses to write the lock or the log (exit 2) unless the log ends with that line.
+- **`lock --approvals` fails closed** on a log whose chain is broken: nothing is added on top of it. Suggested on r/mcp.
+
 ## v0.12.0 (2026-10-23)
 
 ### Approval log (issue #34)
