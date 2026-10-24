@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -266,6 +267,15 @@ def scan(as_json: bool, as_sarif: bool, output: Path | None, fail_on: str) -> No
         raise SystemExit(1)
 
 
+def _sha256_option(ctx: click.Context, param: click.Parameter,
+                   value: str | None) -> str | None:
+    if value is None:
+        return None
+    if re.fullmatch(r"[0-9a-fA-F]{64}", value) is None:
+        raise click.BadParameter("expected a SHA-256 (64 hex characters)")
+    return value.lower()
+
+
 @cli.command()
 @click.argument("config_file", required=False,
                 type=click.Path(exists=True, dir_okay=False, path_type=Path))
@@ -289,12 +299,15 @@ def scan(as_json: bool, as_sarif: bool, output: Path | None, fail_on: str) -> No
               help="Append who approved what to this append-only log (JSON Lines).")
 @click.option("--approver", metavar="NAME", help="With --approvals (default: the OS user).")
 @click.option("--reason", metavar="TEXT", help="With --approvals: why the change is approved.")
+@click.option("--expect-head", metavar="HASH", callback=_sha256_option,
+              help="With --approvals: refuse unless the log ends with this line "
+                   "(from `mcp-guard approvals FILE --head`).")
 def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live: bool,
          assume_yes: bool, timeout: float, update: bool, approvals_file: Path | None,
-         approver: str | None, reason: str | None) -> None:
+         approver: str | None, reason: str | None, expect_head: str | None) -> None:
     """Fingerprint servers and tools into a lock file, to detect rug pulls later."""
-    if (approver or reason) and approvals_file is None:
-        raise click.UsageError("--approver and --reason need --approvals FILE")
+    if (approver or reason or expect_head) and approvals_file is None:
+        raise click.UsageError("--approver, --reason and --expect-head need --approvals FILE")
     data, source = _load_input(config_file, servers)
     static = _static_snapshot(data, source)
     results = _live_results(static, timeout, assume_yes) if live else None
@@ -303,6 +316,11 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
         details = "; ".join(f"{printable(n, 60)}: {e}" for n, e in failed.items())
         raise InputError(f"cannot lock, some servers could not be reached: {details}")
     current = collect(data, source, results)
+    if approvals_file is not None:
+        try:
+            approvals.guard(approvals_file, expect_head)  # fail closed: nothing written
+        except ConfigFormatError as exc:
+            raise InputError(str(exc)) from exc
     prior = _prior_lock(output, current) if approvals_file is not None else None
     if update:
         _update_lock(current, output)
@@ -361,14 +379,20 @@ def _record_approval(log: Path, output: Path, prior: _Prior, approver: str | Non
 @cli.command("approvals")
 @click.argument("log_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--json", "as_json", is_flag=True, help="Output the entries as JSON.")
-def approvals_cmd(log_file: Path, as_json: bool) -> None:
+@click.option("--head", "only_head", is_flag=True,
+              help="Print only the hash of the last line, to keep outside the log "
+                   "and pass to `lock --expect-head`.")
+def approvals_cmd(log_file: Path, as_json: bool, only_head: bool) -> None:
     """List the approvals of a log written by `lock --approvals` and check its
     chain. Exits with 1 if a line was edited, inserted or removed."""
     try:
         entries, problems = approvals.read_log(log_file)
     except ConfigFormatError as exc:
         raise InputError(str(exc)) from exc
-    if as_json:
+    if only_head:
+        if not problems:
+            click.echo(approvals.head(log_file) or "")
+    elif as_json:
         click.echo(json.dumps([e.model_dump(mode="json", exclude_none=True) for e in entries],
                               indent=2))
     else:

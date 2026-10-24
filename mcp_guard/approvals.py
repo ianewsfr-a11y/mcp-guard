@@ -14,8 +14,12 @@ JSON line per approval to FILE, easy to query later:
   unreadable, other mode), so `changes` is empty for that reason only;
 - `previous`: SHA-256 of the previous line of the log. `mcp-guard approvals
   FILE` checks the chain: a line edited, inserted or removed in the middle
-  breaks it. Removing the last lines does not: keep the log in git, or ship
-  it elsewhere, if that matters.
+  breaks it. Removing the last lines does not: keep the hash of the last line
+  (`mcp-guard approvals FILE --head`) where the log cannot reach it, and pass
+  it to `lock --approvals FILE --expect-head HASH` (issue #37).
+
+`lock --approvals` fails closed: it writes neither the lock nor the log when
+the chain is broken, or when the log does not end with the expected line.
 
 The log is opt-in. Nothing is written without `--approvals`.
 """
@@ -144,6 +148,25 @@ def read_log(path: Path) -> tuple[list[Approval], list[str]]:
         entries.append(entry)
         previous = line
     return entries, problems
+
+
+def head(path: Path) -> str | None:
+    """SHA-256 of the log's last line: the anchor to keep outside the log."""
+    last = _last_line(path)
+    return sha256(last) if last is not None else None
+
+
+def guard(path: Path, expected: str | None) -> None:
+    """Refuse to add to a log whose chain is broken, or that does not end
+    with the line `expected` names (a removed tail)."""
+    if path.exists():
+        problems = read_log(path)[1]
+        if problems:
+            raise ConfigFormatError(f"approval log {path}: {problems[0]}; fix it before "
+                                    "approving anything else")
+    if expected is not None and head(path) != expected:
+        raise ConfigFormatError(f"approval log {path} does not end with the expected line "
+                                f"{expected[:12]}: its last lines were removed or replaced")
 
 
 def describe(entry: Approval) -> str:
