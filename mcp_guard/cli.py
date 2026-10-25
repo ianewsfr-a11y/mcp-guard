@@ -320,7 +320,8 @@ def lock(config_file: Path | None, servers: tuple[str, ...], output: Path, live:
         try:
             approvals.guard(approvals_file, expect_head)  # fail closed: nothing written
         except ConfigFormatError as exc:
-            raise InputError(str(exc)) from exc
+            who = printable(approver or approvals.default_approver(), 60)
+            raise InputError(f"approval by {who} refused: {exc}") from exc
     prior = _prior_lock(output, current) if approvals_file is not None else None
     if update:
         _update_lock(current, output)
