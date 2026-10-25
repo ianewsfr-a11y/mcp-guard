@@ -158,15 +158,32 @@ def head(path: Path) -> str | None:
 
 def guard(path: Path, expected: str | None) -> None:
     """Refuse to add to a log whose chain is broken, or that does not end
-    with the line `expected` names (a removed tail)."""
+    with the line `expected` names (a removed tail, or a stale anchor)."""
     if path.exists():
         problems = read_log(path)[1]
         if problems:
             raise ConfigFormatError(f"approval log {path}: {problems[0]}; fix it before "
                                     "approving anything else")
-    if expected is not None and head(path) != expected:
-        raise ConfigFormatError(f"approval log {path} does not end with the expected line "
-                                f"{expected[:12]}: its last lines were removed or replaced")
+    current = head(path)
+    if expected is not None and current != expected:
+        raise ConfigFormatError(f"approval log {path} does not end with the expected line: "
+                                f"{_mismatch(path, expected)} (expected {expected}, the log "
+                                f"ends with {current or 'no line'})")
+
+
+def _mismatch(path: Path, expected: str) -> str:
+    """Drift (the expected line is gone) or a stale anchor (lines were
+    added after it): an operator handles them differently."""
+    try:
+        lines = [line for line in path.read_bytes().splitlines() if line.strip()]
+    except OSError:
+        lines = []
+    hashes = [sha256(line) for line in lines]
+    if expected not in hashes:
+        return "drift, no line of the log has that hash: its last lines were removed or replaced"
+    after = len(hashes) - 1 - hashes.index(expected)
+    return (f"stale anchor, {after} approval(s) were recorded after that line: review them, "
+            "then take a new anchor with `mcp-guard approvals FILE --head`")
 
 
 def describe(entry: Approval) -> str:

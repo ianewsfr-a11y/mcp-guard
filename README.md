@@ -420,6 +420,7 @@ mcp-guard approvals mcp-guard.approvals.jsonl     # list them, check the chain
   ```
 
 - **Fails closed:** `lock --approvals` writes neither the lock nor the log (exit 2) when the chain is broken, or when the log does not end with the `--expect-head` line. Only the approval step works this way; the proxy stays fail-open.
+- **A refusal says why,** with the approver, the expected hash and the one the log ends with. *Drift*: no line of the log has the expected hash, so lines were removed or replaced. *Stale anchor*: the expected line is there but approvals were recorded after it; review them, then take a new anchor.
 - **Opt-in:** nothing is written without `--approvals`. `lock --update` records a migration too, with no change.
 
 ### `proxy`: watch a server while you use it

@@ -213,3 +213,20 @@ def test_expect_head_needs_a_log_and_a_hash(tmp_path):
                                        "--approvals", str(tmp_path / "a.jsonl"),
                                        "--expect-head", "a" * 64])
     assert missing.exit_code == 2 and not (tmp_path / "x.lock").exists()
+
+
+@pytest.mark.integration
+def test_a_refusal_tells_drift_from_a_stale_anchor(tmp_path):
+    _lock(tmp_path, TOOLS)
+    old = _head(tmp_path)
+    _lock(tmp_path, CHANGED, "--approver", "bob")  # approved after the anchor was taken
+    config, log = _write(tmp_path / "tools.json", TOOLS), tmp_path / "approvals.jsonl"
+    args = ["lock", str(config), "-o", str(tmp_path / "mcp-guard.lock"), "--approvals", str(log),
+            "--approver", "carol", "--expect-head"]
+    stale = CliRunner().invoke(cli, [*args, old])
+    assert stale.exit_code == 2
+    text = " ".join(stale.output.split())
+    assert "approval by carol refused" in text and "stale anchor, 1 approval(s)" in text
+    assert old in text and _head(tmp_path) in text
+    drift = CliRunner().invoke(cli, [*args, "b" * 64])
+    assert "drift, no line of the log has that hash" in " ".join(drift.output.split())
