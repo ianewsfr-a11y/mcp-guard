@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.13.1 (2026-10-25)
 
 ### Approval log: refusals that say why
 - **A refused `lock --approvals --expect-head`** names the approver, the expected hash and the hash the log ends with, and tells *drift* (no line of the log has the expected hash: lines were removed or replaced) from a *stale anchor* (approvals were recorded after the expected line). Suggested on r/mcp.
