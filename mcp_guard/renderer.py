@@ -13,6 +13,7 @@ from rich.table import Table
 from .capabilities import CAPABILITIES, Capability, TaggedTool
 from .combined import MAX_LISTED, CombinedResult
 from .combined import RULE as COMBINED_RULE
+from .combined_coverage import LIMITS, coverage_dict
 from .diff import CombinedDiff, FieldChange, ItemDiff, SnapshotDiff
 from .injection import ScenarioResult
 from .markup import escape
@@ -78,7 +79,14 @@ def _poisoning_alert(entries: tuple[AuditEntry, ...]) -> None:
 def _tagged(tool: TaggedTool, capability: Capability) -> dict[str, Any]:
     tag = tool.tag(capability)
     return {"server": tool.server, "tool": tool.name,
-            "source": tag.source if tag else None, "trigger": tag.trigger if tag else None}
+            "source": tag.source if tag else None, "trigger": tag.trigger if tag else None,
+            "confidence": tag.confidence if tag else None}
+
+
+def _uncertain(result: CombinedResult) -> list[dict[str, Any]]:
+    return [{"server": t.server, "tool": t.name, "capability": tag.capability,
+             "source": tag.source, "trigger": tag.trigger}
+            for t in result.uncertain for tag in t.uncertain]
 
 
 def combined_details(result: CombinedResult) -> dict[str, Any]:
@@ -93,6 +101,8 @@ def combined_details(result: CombinedResult) -> dict[str, Any]:
         "suppressed_by_rules": [{"server": t.server, "tool": t.name,
                                  "capabilities": list(t.suppressed)}
                                 for t in result.suppressed],
+        "uncertain": _uncertain(result),  # low confidence: reported, not counted
+        "coverage": coverage_details(result),
     }
 
 
@@ -130,12 +140,46 @@ def _tool_list(tools: tuple[TaggedTool, ...], capability: Capability) -> str:
     return ", ".join(shown) + (f" and {more} more" if more > 0 else "")
 
 
+def _uncertain_line(result: CombinedResult) -> str:
+    """Low-confidence tags: shown so the doubt is visible, not counted."""
+    shown = [f"{escape(printable(t.label, 80))} ({tag.capability}: "
+             f"{escape(printable(tag.trigger, 80))})"
+             for t in result.uncertain[:MAX_LISTED] for tag in t.uncertain]
+    more = len(result.uncertain) - MAX_LISTED
+    return ("Uncertain, not counted: " + ", ".join(shown)
+            + (f" and {more} more tool(s)" if more > 0 else ""))
+
+
+def coverage_details(result: CombinedResult) -> dict[str, Any] | None:
+    """What the rule confirmed, missed, doubted and could not read (v0.14)."""
+    return coverage_dict(result.coverage) if result.coverage is not None else None
+
+
+def _relevant_line(result: CombinedResult) -> str | None:
+    cov = result.coverage
+    if cov is None or not cov.relevant_uncertain:
+        return None
+    links = ", ".join(f"{escape(printable(link.label, 80))} "
+                      f"({escape(printable(link.trigger, 80))})"
+                      for link in cov.relevant_uncertain[:MAX_LISTED])
+    return (f"[yellow]Only low-confidence evidence could supply {cov.missing[0]}: {links}. "
+            f"Confirm or rule it out with a `capabilities` rule.[/]")
+
+
 def render_combined(result: CombinedResult) -> None:
     title = f"{COMBINED_RULE} (experimental)"
     if result.status != "triggered":
         label, style = _STATUS_LABELS[result.status]
         console.print(f"\n[{style}]{title}: {label}[/] "
                       f"[dim]({escape(printable(result.reason, 300))})[/]")
+        relevant = _relevant_line(result)
+        if relevant:
+            console.print(relevant)
+        others = result.coverage.other_uncertain if result.coverage else len(result.uncertain)
+        if result.uncertain and others:  # the relevant links are already named above
+            console.print(f"[dim]{_uncertain_line(result)}[/]")
+        if result.status in ("clear", "partial"):
+            console.print(f"[dim]Verdict {escape(LIMITS)}.[/]")
         return
     lines = []
     for capability in CAPABILITIES:
@@ -147,6 +191,8 @@ def render_combined(result: CombinedResult) -> None:
                      f"{escape(printable(', '.join(result.unevaluated[:MAX_LISTED]), 300))}[/]")
     if result.malformed:
         lines.append(f"[yellow]{result.malformed} malformed tool(s) could not be tagged[/]")
+    if result.uncertain:
+        lines.append(f"[dim]{_uncertain_line(result)}[/]")
     lines.append("An injected instruction can read private data, pick up attacker content "
                  "and send it out through these tools. Remove the cut-point tools or "
                  "require approval for each call.")

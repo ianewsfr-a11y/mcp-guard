@@ -24,4 +24,4 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check mcp_guard tests
       - run: mypy mcp_guard
-      - run: pytest -q --cov=mcp_guard --cov-report=term-missing --cov-fail-under=85
+      - run: pytest -q --cov=mcp_guard --cov-report=term-missing --cov-fail-under=95

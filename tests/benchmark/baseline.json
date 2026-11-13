@@ -1,0 +1,4397 @@
+{
+  "historical": {
+    "corpus": {
+      "tools": 49,
+      "sets": 12,
+      "results": 7
+    },
+    "metrics": {
+      "capabilities": {
+        "reads_private": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 1,
+          "tn": 19,
+          "precision": 1.0,
+          "recall": 0.8
+        },
+        "ingests_untrusted": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "tn": 17,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "sends_external": {
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "tn": 19,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "combined_partial": {
+        "on_expected_alert": 1,
+        "on_expected_clear": 0
+      },
+      "capabilities_ambiguous": {
+        "asserted": 0,
+        "uncertain": 0,
+        "untagged": 0
+      },
+      "capabilities_uncertain_flags": 2,
+      "combined": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 1,
+        "tn": 3,
+        "precision": 1.0,
+        "recall": 0.75
+      },
+      "poisoning": {
+        "tp": 15,
+        "fp": 0,
+        "fn": 0,
+        "tn": 34,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "results_static_detector": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "tn": 3,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "cases": {
+      "poisoning": [
+        {
+          "id": "F-feedhub_validate_config",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_fetch_items",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "F-feedhub_score_items",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_filter_items",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_enrich_items",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_generate_digest",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_run_pipeline",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "F-feedhub_list_runs",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_get_digest",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "F-feedhub_send_webhook",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "F-feedhub_get_items",
+          "technique": "aggregator tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "P01",
+          "technique": "hidden tag + key file",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P02",
+          "technique": "plain imperative, no tag",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P03",
+          "technique": "shadowing another tool",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P04",
+          "technique": "French injection",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "P05",
+          "technique": "invisible Unicode tags",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P06",
+          "technique": "base64 instruction",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P07",
+          "technique": "instruction in a parameter",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P08",
+          "technique": "paraphrase asking for credentials",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "P10",
+          "technique": "HTML comment",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "command-execution",
+            "tool-poisoning"
+          ],
+          "risk": "CRITICAL"
+        },
+        {
+          "id": "N01",
+          "technique": "word 'important'",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "N02",
+          "technique": "word 'ignore'",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "N03",
+          "technique": "legitimate file read",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "N04",
+          "technique": "legitimate send",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "N05",
+          "technique": "words 'system prompt'",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "D01",
+          "technique": "documents the sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "D02",
+          "technique": "documents the sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "D03",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "D04",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "D05",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "D06",
+          "technique": "order to call another tool with all content",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "D07",
+          "technique": "order to call another tool, 'invoke' form",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "D08",
+          "technique": "order in the detected 'before calling' form",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "R-rugpull_a",
+          "technique": "'call X with' form",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "R-rugpull_b",
+          "technique": "'before calling X' form",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "R-rugpull_c",
+          "technique": "'invoke X' form",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C01",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C02",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C03",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C04",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C05",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C06",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C07",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C08",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C09",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C10",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C11",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C12",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C13",
+          "technique": "capability set",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "F-feedhub_validate_config",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "fn"
+        },
+        {
+          "id": "F-feedhub_validate_config",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_validate_config",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_fetch_items",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_fetch_items",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_fetch_items",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_score_items",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_score_items",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_score_items",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_filter_items",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_filter_items",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_filter_items",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_enrich_items",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_enrich_items",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_enrich_items",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_generate_digest",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_generate_digest",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_generate_digest",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_run_pipeline",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_run_pipeline",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_run_pipeline",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_list_runs",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_list_runs",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_list_runs",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_get_digest",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_get_digest",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_get_digest",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_send_webhook",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_send_webhook",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_send_webhook",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_get_items",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "F-feedhub_get_items",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "F-feedhub_get_items",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C01",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C01",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C01",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C02",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C02",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C02",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C03",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C03",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C03",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C04",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C04",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C04",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C05",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C05",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C05",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C06",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C06",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C06",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C07",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C07",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C07",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C08",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C08",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C08",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C09",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C09",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C09",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C10",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C10",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C10",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C11",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C11",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C11",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "C12",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "C12",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C12",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C13",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C13",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "C13",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        }
+      ],
+      "combined": [
+        {
+          "set": "aggregator",
+          "expected": true,
+          "status": "partial",
+          "reason": "missing: reads_private; uncertain: feedhub > feedhub_validate_config could provide reads_private (low confidence, not counted)",
+          "partial": true,
+          "outcome": "fn"
+        },
+        {
+          "set": "aggregator_fs",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "triple",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "pair",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: ingests_untrusted",
+          "partial": false,
+          "outcome": "tn"
+        },
+        {
+          "set": "benign",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: reads_private, ingests_untrusted, sends_external",
+          "partial": false,
+          "outcome": "tn"
+        },
+        {
+          "set": "paraphrase",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "fp_trap",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: ingests_untrusted, sends_external",
+          "partial": false,
+          "outcome": "tn"
+        }
+      ],
+      "results": [
+        {
+          "id": "T01",
+          "technique": "system notice naming an outbound tool",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "signals": [
+            "directive/cross-tool-transfer",
+            "marker/concealment"
+          ]
+        },
+        {
+          "id": "T02",
+          "technique": "hidden tag in an article",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "signals": [
+            "exfiltration/file-path",
+            "exfiltration/sensitive-file",
+            "marker/hidden-tag"
+          ]
+        },
+        {
+          "id": "T03",
+          "technique": "role marker",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "signals": [
+            "directive/credential-solicitation",
+            "exfiltration/url"
+          ]
+        },
+        {
+          "id": "T04",
+          "technique": "HTML comment for the model",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "signals": [
+            "invisible/html-comment"
+          ]
+        },
+        {
+          "id": "T05",
+          "technique": "ordinary article",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "signals": []
+        },
+        {
+          "id": "T06",
+          "technique": "security news quoting an attack",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "signals": []
+        },
+        {
+          "id": "T07",
+          "technique": "internal memo",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "signals": []
+        }
+      ]
+    }
+  },
+  "holdout": {
+    "corpus": {
+      "tools": 69,
+      "sets": 10,
+      "results": 0
+    },
+    "metrics": {
+      "capabilities": {
+        "reads_private": {
+          "tp": 22,
+          "fp": 5,
+          "fn": 3,
+          "tn": 36,
+          "precision": 0.815,
+          "recall": 0.88
+        },
+        "ingests_untrusted": {
+          "tp": 8,
+          "fp": 1,
+          "fn": 0,
+          "tn": 55,
+          "precision": 0.889,
+          "recall": 1.0
+        },
+        "sends_external": {
+          "tp": 9,
+          "fp": 1,
+          "fn": 1,
+          "tn": 56,
+          "precision": 0.9,
+          "recall": 0.9
+        }
+      },
+      "combined_partial": {
+        "on_expected_alert": 0,
+        "on_expected_clear": 0
+      },
+      "capabilities_ambiguous": {
+        "asserted": 2,
+        "uncertain": 2,
+        "untagged": 6
+      },
+      "capabilities_uncertain_flags": 10,
+      "combined": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 4,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "cases": {
+      "poisoning": [],
+      "capabilities": [
+        {
+          "id": "L1",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "L1",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L1",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L2",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "L2",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "L3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L3",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L4",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "L4",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L4",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L5",
+          "capability": "reads_private",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "ambiguous-uncertain"
+        },
+        {
+          "id": "L5",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L5",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L6",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "L6",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "L6",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U1",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U1",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U1",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U2",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U2",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "U3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U3",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U4",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U4",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U4",
+          "capability": "sends_external",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "ambiguous-uncertain"
+        },
+        {
+          "id": "U5",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U5",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U5",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U6",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "U6",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U6",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "U7",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U7",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "U7",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "G1",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G1",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G1",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "G2",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "G2",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "G2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G3",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "G3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G3",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "fn"
+        },
+        {
+          "id": "G4",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G4",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "G4",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "M1",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "M1",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "M1",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "M2",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "fn"
+        },
+        {
+          "id": "M2",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "M2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "M3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "M3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "M3",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "W1",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "W1",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "W1",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "S1",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S1",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "S1",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S2",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S2",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "S2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S3",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S4",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S4",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "S4",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "K1",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "fn"
+        },
+        {
+          "id": "K1",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K1",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K2",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "fn"
+        },
+        {
+          "id": "K2",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "K3",
+          "capability": "sends_external",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "Z1",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z1",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z1",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z2",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z2",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z2",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z3",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z3",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "Z3",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "O-memory-create_entities",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "fp"
+        },
+        {
+          "id": "O-memory-create_entities",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-create_entities",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-create_relations",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-create_relations",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-create_relations",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-add_observations",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-add_observations",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-add_observations",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_entities",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_entities",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_entities",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_observations",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_observations",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_observations",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_relations",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_relations",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-delete_relations",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-read_graph",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-memory-read_graph",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-read_graph",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-search_nodes",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-memory-search_nodes",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-search_nodes",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-open_nodes",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-memory-open_nodes",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-memory-open_nodes",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_file",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-read_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_text_file",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-read_text_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_text_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_media_file",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-read_media_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_media_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_multiple_files",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-read_multiple_files",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-read_multiple_files",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-write_file",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-write_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-write_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-edit_file",
+          "capability": "reads_private",
+          "expected": "ambiguous",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "ambiguous-asserted"
+        },
+        {
+          "id": "O-filesystem-edit_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-edit_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-create_directory",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-create_directory",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-create_directory",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_directory",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-list_directory",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_directory",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_directory_with_sizes",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-list_directory_with_sizes",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_directory_with_sizes",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-directory_tree",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-directory_tree",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-directory_tree",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-move_file",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-move_file",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-move_file",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-search_files",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-search_files",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-search_files",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-get_file_info",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-filesystem-get_file_info",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-get_file_info",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_allowed_directories",
+          "capability": "reads_private",
+          "expected": "ambiguous",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "ambiguous-asserted"
+        },
+        {
+          "id": "O-filesystem-list_allowed_directories",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-filesystem-list_allowed_directories",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-fetch-fetch",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-fetch-fetch",
+          "capability": "ingests_untrusted",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-fetch-fetch",
+          "capability": "sends_external",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_status",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_status",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_status",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_diff_unstaged",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_diff_unstaged",
+          "capability": "ingests_untrusted",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "O-git-git_diff_unstaged",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_diff_staged",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_diff_staged",
+          "capability": "ingests_untrusted",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "O-git-git_diff_staged",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_diff",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_diff",
+          "capability": "ingests_untrusted",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "O-git-git_diff",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_commit",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_commit",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_commit",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_add",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_add",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_add",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_reset",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_reset",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_reset",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_log",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_log",
+          "capability": "ingests_untrusted",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "O-git-git_log",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_create_branch",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_create_branch",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_create_branch",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_checkout",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_checkout",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_checkout",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_show",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_show",
+          "capability": "ingests_untrusted",
+          "expected": "ambiguous",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "ambiguous-untagged"
+        },
+        {
+          "id": "O-git-git_show",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_branch",
+          "capability": "reads_private",
+          "expected": "yes",
+          "detected": true,
+          "uncertain": false,
+          "outcome": "tp"
+        },
+        {
+          "id": "O-git-git_branch",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-git-git_branch",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-get_current_time",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-get_current_time",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-get_current_time",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-convert_time",
+          "capability": "reads_private",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-convert_time",
+          "capability": "ingests_untrusted",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        },
+        {
+          "id": "O-time-convert_time",
+          "capability": "sends_external",
+          "expected": "no",
+          "detected": false,
+          "uncertain": false,
+          "outcome": "tn"
+        }
+      ],
+      "combined": [
+        {
+          "set": "mail",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "mail_web",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "news_chat",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: reads_private",
+          "partial": false,
+          "outcome": "tn"
+        },
+        {
+          "set": "kv_translate",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: reads_private, ingests_untrusted, sends_external",
+          "partial": false,
+          "outcome": "tn"
+        },
+        {
+          "set": "todo_calc",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: reads_private, ingests_untrusted",
+          "partial": false,
+          "outcome": "tn"
+        },
+        {
+          "set": "official_all",
+          "expected": true,
+          "status": "triggered",
+          "reason": "",
+          "partial": false,
+          "outcome": "tp"
+        },
+        {
+          "set": "official_local",
+          "expected": false,
+          "status": "clear",
+          "reason": "missing: ingests_untrusted, sends_external",
+          "partial": false,
+          "outcome": "tn"
+        }
+      ],
+      "results": []
+    }
+  },
+  "poisoning": {
+    "corpus": {
+      "tools": 87,
+      "sets": 2,
+      "results": 0
+    },
+    "metrics": {
+      "capabilities": {
+        "reads_private": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "ingests_untrusted": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "sends_external": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "combined_partial": {
+        "on_expected_alert": 0,
+        "on_expected_clear": 0
+      },
+      "capabilities_ambiguous": {
+        "asserted": 0,
+        "uncertain": 0,
+        "untagged": 0
+      },
+      "capabilities_uncertain_flags": 0,
+      "combined": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "poisoning": {
+        "tp": 14,
+        "fp": 1,
+        "fn": 4,
+        "tn": 68,
+        "precision": 0.933,
+        "recall": 0.778
+      },
+      "poisoning_by_split": {
+        "challenge": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 4,
+          "tn": 5,
+          "precision": 0.667,
+          "recall": 0.333
+        },
+        "development": {
+          "tp": 12,
+          "fp": 0,
+          "fn": 0,
+          "tn": 25,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "independent-negatives": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "tn": 38,
+          "precision": null,
+          "recall": null
+        }
+      }
+    },
+    "cases": {
+      "poisoning": [
+        {
+          "id": "V01",
+          "technique": "cross-tool order in a parameter description",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "database",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V02",
+          "technique": "cross-tool order, French",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V03",
+          "technique": "credential solicitation, Spanish",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V04",
+          "technique": "environment credential solicitation",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V05",
+          "technique": "priority override with a cross-tool order",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V06",
+          "technique": "approval bypass",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V07",
+          "technique": "hidden workflow requirement",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V08",
+          "technique": "fullwidth Unicode override",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V09",
+          "technique": "zero-width character inside the verb",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V10",
+          "technique": "token sent to a URL",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V11",
+          "technique": "'invoke' order with secrets",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "V12",
+          "technique": "order addressed to the agent",
+          "split": "development",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "network",
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "W01",
+          "technique": "security tool quoting an attack",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "suspicious-instruction"
+          ],
+          "risk": "LOW"
+        },
+        {
+          "id": "W02",
+          "technique": "credential documentation",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W03",
+          "technique": "legitimate chaining with this tool's output",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W04",
+          "technique": "legitimate 'before calling' workflow",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "W05",
+          "technique": "password tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W06",
+          "technique": "token tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W07",
+          "technique": "send with user approval",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "W08",
+          "technique": "French plain description",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W09",
+          "technique": "quotation of an attack in documentation",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "suspicious-instruction"
+          ],
+          "risk": "LOW"
+        },
+        {
+          "id": "W10",
+          "technique": "environment variable documentation",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "W11",
+          "technique": "legitimate prerequisite tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "W12",
+          "technique": "key management tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-send_message",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "S-upload_file",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "S-delete_repo",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "S-audit_log",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "S-export_data",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-get_job_status",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-create_issue",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "S-search_issues",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-list_buckets",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-share_doc",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-publish_post",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "S-mark_read",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-translate_text",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C01",
+          "technique": "append credentials, no other tool",
+          "split": "challenge",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C02",
+          "technique": "requirement without an imperative",
+          "split": "challenge",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C03",
+          "technique": "gerund instead of an imperative",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C04",
+          "technique": "impersonal 'it is essential to'",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C05",
+          "technique": "German order",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C06",
+          "technique": "indirect credential solicitation",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C07",
+          "technique": "legitimate bulk export to a sibling tool",
+          "split": "challenge",
+          "expected": false,
+          "detected": true,
+          "outcome": "fp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C08",
+          "technique": "security advice with a negation",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C09",
+          "technique": "bulk read followed by an unrelated call",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "suspicious-instruction"
+          ],
+          "risk": "LOW"
+        },
+        {
+          "id": "C10",
+          "technique": "warning that names another tool",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C11",
+          "technique": "parameter documentation with an example",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C12",
+          "technique": "imperative about this tool's own input",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "O-memory-create_entities",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-create_relations",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-add_observations",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-delete_entities",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-delete_observations",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-delete_relations",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-memory-read_graph",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-memory-search_nodes",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "database"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "O-memory-open_nodes",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-read_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-read_text_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-read_media_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-read_multiple_files",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-write_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-filesystem-edit_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-filesystem-create_directory",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-filesystem-list_directory",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-list_directory_with_sizes",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-directory_tree",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-move_file",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-filesystem-search_files",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-get_file_info",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-filesystem-list_allowed_directories",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-fetch-fetch",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "O-git-git_status",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-git-git_diff_unstaged",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-git-git_diff_staged",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_diff",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_commit",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_add",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_reset",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-git-git_log",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_create_branch",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_checkout",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-git-git_show",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "O-git-git_branch",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-time-get_current_time",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "O-time-convert_time",
+          "technique": "official reference server",
+          "split": "independent-negatives",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        }
+      ],
+      "capabilities": [],
+      "combined": [],
+      "results": []
+    }
+  },
+  "coverage": {
+    "corpus": {
+      "scenarios": 20
+    },
+    "metrics": {
+      "right": 20,
+      "wrong": 0,
+      "statuses": {
+        "triggered": 6,
+        "clear": 8,
+        "partial": 5,
+        "not-evaluated": 1
+      }
+    },
+    "cases": {
+      "coverage": [
+        {
+          "id": "CV01",
+          "case": "A",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV02",
+          "case": "B",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV03",
+          "case": "B",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV04",
+          "case": "C",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [
+            "reads_private"
+          ],
+          "relevant": [
+            "reads_private"
+          ],
+          "outcome": "right"
+        },
+        {
+          "id": "CV05",
+          "case": "C",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [
+            "sends_external"
+          ],
+          "relevant": [
+            "sends_external"
+          ],
+          "outcome": "right"
+        },
+        {
+          "id": "CV06",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV07",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV08",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV09",
+          "case": "E",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV10",
+          "case": "E",
+          "expected": "not-evaluated",
+          "status": "not-evaluated",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV11",
+          "case": "E",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV12",
+          "case": "F",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV13",
+          "case": "F",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV14",
+          "case": "L2",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [
+            "reads_private"
+          ],
+          "relevant": [
+            "reads_private"
+          ],
+          "outcome": "right"
+        },
+        {
+          "id": "CV15",
+          "case": "L2",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV16",
+          "case": "rules",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV17",
+          "case": "rules",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV18",
+          "case": "rules",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV19",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV20",
+          "case": "A",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        }
+      ]
+    }
+  }
+}

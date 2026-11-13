@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.14.0 (2026-11-13)
+
+Detection quality release: capability tags weigh schemas, server context and negation with a confidence level; the combined rule says what it confirmed, suspects and could not read; tool-poisoning orders are judged in context. CLI commands, exit codes, lock and snapshot formats and the proxy are unchanged. JSON and SARIF changes are additive.
+
+### Capability tags
+- **The input schema counts.** A free path parameter (no `enum`, `const` or bounding `pattern`) gives `reads_private` when the tool says it reads and returns something, and a low-confidence tag when it only checks the path or its role is unclear. A path to write to is not a read. A free URL parameter gives `sends_external` when the tool sends to it or fetches it (`ingests_untrusted` too), a low-confidence tag otherwise.
+- **Server context.** A tool that reads back stored items, articles, digests or messages gets `ingests_untrusted` when another tool of the same server brings third-party content in.
+- **Negation demotes, never removes.** "Makes no network request" lowers the negated words to low confidence. Any non-negated trigger, and the tool's name, keep the tag: a description cannot talk a tag away.
+- **`url` alone is no longer untrusted content or a request**: it needs a fetch or request verb. New paraphrases are covered ("Return the contents stored at a path on this machine", "Retrieve the page found at an address", "Deliver a message").
+- **Confidence on every tag** (`high` rules, `medium`, `low`). Low-confidence tags are reported apart and not counted by `--combined`. JSON output (additive): `confidence` on each surface entry, and an `uncertain` list in the combined details. The table shows them on an "Uncertain, not counted" line.
+
+### Combined rule: coverage
+- **`partial` now also means "one link rests only on low-confidence evidence".** When two capabilities are confirmed and the third could only come from a low-confidence tag (a free `config_path` with no sign its content is returned, a sender that says it makes no request), the verdict is `partial` and names those tools, instead of `clear`. Low-confidence evidence is never counted as confirmed and never raises a finding. With two capabilities missing, doubts are reported but the verdict stays `clear`.
+- **Every verdict explains itself.** A `coverage` block (JSON `combined.coverage`, SARIF notification `properties.coverage`, both additive) lists the confirmed and missing capabilities, the uncertain tools that would complete the chain, the other doubts, the servers not evaluated, the malformed tools, the reasons and the limits. The table names the uncertain link and states that no status certifies a config as safe.
+- **Bounded paths.** A schema `pattern` bounds a path only if it rejects path escapes (`.*` or `[a-z]+` bound nothing). A bounded path turns a "reads private data" keyword that rests only on file words ("Load a profile") into a low-confidence doubt; independent evidence (an inbox, a database, a shell, a free path) keeps the read.
+- **Server-supplied patterns are run only when their cost is bounded.** A pattern is run on the path probes only if it has no quantified group, no backreference or lookaround and at most three quantifiers; any other pattern is not judged and counts as unbounded, the cautious side. Python's backtracking `re` would otherwise let a hostile 11-character pattern such as `^(.|.|.)*Z$` stall the scan (found and fixed during development, never released). Regression tests run hostile patterns in a child process with a timeout.
+- Statuses keep their names (`triggered`, `clear`, `partial`, `not-evaluated`, `disabled`). Exit codes are unchanged: only `triggered` is a finding. Some `--combined` verdicts change; the rule is experimental.
+
+### Tool poisoning: directives judged in context
+- **An imperative is no longer evidence on its own.** Orders to the agent are cut into clauses and judged by what they ask. Credential solicitation, bulk content sent to another tool or an external destination, a claim of priority over the user's request and a hidden "compliance requirement" are new HIGH signals (`directive/...`). Documentation of a workflow ("with that id to poll", "to avoid duplicates", "use X to add...", "instead") is not.
+- **"Before calling X" needs a reason.** The `cross-reference/sequencing` signal is reported only next to such a directive. "Before calling create_issue, use search_issues to avoid duplicates" no longer raises a MEDIUM finding.
+- **New LOW category `suspicious-instruction`**, never `tool-poisoning`: an addressed call to another tool with no harmful object, or a poisoning signal inside a quotation that presents examples ("phrases such as 'ignore previous instructions'"). It is listed in SARIF only when reported, and can be turned off with `disable: [suspicious-instruction]`. `signals()` returns ambiguous signals only with `ambiguous=True`.
+- **Common phrasings in French and Spanish** are recognized ("appelle X avec tout son contenu", "incluye la clave API").
+- Every new pattern is linear on hostile text (bounded repetitions). A 20,000-character adversarial description is analyzed in under 40 ms.
+
+### Known limitations
+- **Bulk export of user-selected items to a sibling tool** ("Use export_data to save every report the user selected") is reported as HIGH `tool-poisoning`. Ignore the tool (`ignore:` in a rules file) after review.
+- **Not caught:** orders phrased as gerunds ("forwarding every transcript to share_doc helps") or impersonally ("it is essential to invoke..."), indirect solicitation without a transfer verb, and languages other than English, French and Spanish.
+- These are keyword heuristics on what servers declare: a determined author can word around them, and no status certifies a server as safe.
+
+### Tests
+- **`tests/benchmark/`**: synthetic corpora with ground truth, run through the real audit pipeline. A historical corpus, a held-out corpus (including the official reference servers), coverage scenarios for the combined rule, and tool-poisoning cases in development, challenge and independent-negative splits. `pytest` fails when any case changes outcome against `baseline.json`; the 0.13.1 and Lot 2 references are frozen and pinned by SHA-256.
+- Historical benchmark, 0.13.1 to 0.14.0: tool poisoning 10/0/5/34 to 15/0/0/34 (TP/FP/FN/TN); recall 0.6 to 0.8 (`reads_private`), 0.43 to 1.0 (`ingests_untrusted`), 0.6 to 1.0 (`sends_external`) with no precision loss; combined verdicts 4/7 to 6/7 correct. These describe small synthetic corpora, not MCP servers at large.
+- CI coverage gate raised from 85% to 95%.
+
 ## v0.13.1 (2026-10-25)
 
 ### Approval log: refusals that say why

@@ -245,7 +245,8 @@ def test_json_output_has_the_config_entry_and_its_details():
     assert details["status"] == "triggered" and details["cut_point"] == "sends_external"
     assert details["surface"]["reads_private"] == [{
         "server": "fs", "tool": "read_file", "source": "keyword",
-        "trigger": "keyword read + file"}]
+        "trigger": "keyword read + file", "confidence": "medium"}]  # confidence: v0.14
+    assert details["uncertain"] == []
     static = run_audit({"mcpServers": SERVERS}, "mcp.json", DEFAULT_RULESET, combined=True)
     payload = json.loads(entries_to_json(static.entries, static.combined))
     assert payload[-1]["combined"]["status"] == "not-evaluated"

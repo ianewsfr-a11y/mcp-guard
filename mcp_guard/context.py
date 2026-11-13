@@ -12,6 +12,11 @@ An exception only applies to an occurrence whose *neighbors* (within
 survives if any of its occurrences has no such neighbor, so adding
 "Supports SQL queries" elsewhere in a description cannot hide "Execute
 any command".
+
+Negation is handled apart (`asserted_tokens`): "Makes no network request"
+says the tool does not do something. A negated occurrence is not dropped,
+it is demoted (the capability rules report it with low confidence): the
+words come from the server, and a server can lie.
 """
 
 from __future__ import annotations
@@ -112,5 +117,54 @@ def effective_tokens(texts: Iterable[str], exceptions: Mapping[str, frozenset[st
     for form, excused in _occurrences(name, exceptions, vocabulary):
         uses = excused_in_texts.get(form)
         if not excused and not (uses and all(uses)):
+            found.add(form)
+    return frozenset(found)
+
+
+# --- negation -----------------------------------------------------------------------
+
+NEGATION_WINDOW = 4
+NEGATORS = frozenset({"no", "not", "never", "without", "cannot", "nothing", "none", "neither",
+                      "nor", "doesn", "don", "isn", "aren", "won", "wont", "dont", "doesnt"})
+_CLAUSE_BREAK = re.compile(r"[.;:!?\n]+|\bbut\b|\bhowever\b", re.IGNORECASE)
+
+
+def _negated_occurrences(text: str, exceptions: Mapping[str, frozenset[str]],
+                         vocabulary: frozenset[str] | None) -> list[tuple[str, bool, bool]]:
+    """(form, excused, negated) for every word form in `text`. A word is
+    negated when a negator precedes it within `NEGATION_WINDOW` words of the
+    same clause ("no network request", "does not send", "nothing is read")."""
+    result = []
+    for clause in _CLAUSE_BREAK.split(text or ""):
+        tokens = ordered_tokens(clause)
+        flags = [any(t in NEGATORS for t in tokens[max(0, i - NEGATION_WINDOW):i])
+                 for i in range(len(tokens))]
+        occurrences = _occurrences(clause, exceptions, vocabulary)
+        forms_per_token = [len(word_forms(t, vocabulary)) for t in tokens]
+        index = 0
+        for position, count in enumerate(forms_per_token):
+            for form, excused in occurrences[index:index + count]:
+                result.append((form, excused, flags[position]))
+            index += count
+    return result
+
+
+def asserted_tokens(texts: Iterable[str], exceptions: Mapping[str, frozenset[str]],
+                    vocabulary: frozenset[str] | None = None,
+                    name: str = "") -> frozenset[str]:
+    """Like `effective_tokens`, minus the occurrences that are negated. The
+    tool `name` is what the tool is called to do: a negation in its
+    description cannot cancel it ("send_report: Does not send anything" still
+    sends), only the contextual exceptions can, as in `effective_tokens`."""
+    found: set[str] = set()
+    uses: dict[str, list[bool]] = {}
+    for text in texts:
+        for form, excused, negated in _negated_occurrences(text, exceptions, vocabulary):
+            uses.setdefault(form, []).append(excused)
+            if not (excused or negated):
+                found.add(form)
+    for form, excused in _occurrences(name, exceptions, vocabulary):
+        seen = uses.get(form)
+        if not excused and not (seen and all(seen)):
             found.add(form)
     return frozenset(found)

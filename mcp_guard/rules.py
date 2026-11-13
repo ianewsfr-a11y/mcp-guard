@@ -152,6 +152,10 @@ SURFACE_POISONING: dict[str, str] = {
                          "instructions for the model."),
     "server-instruction-poisoning": ("The instructions the server sends at initialization "
                                      "hide instructions for the model."),
+    "suspicious-instruction": ("The tool's metadata tells the agent to call another tool, or "
+                               "quotes an attack phrase, without the signs of poisoning "
+                               "(credentials, bulk content, priority claims): worth a look, "
+                               "LOW."),
 }
 EXPERIMENTAL_CHECKS: dict[str, str] = {
     "agent-exfiltration-surface": (

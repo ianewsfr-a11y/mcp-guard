@@ -1,0 +1,3 @@
+# The frozen benchmark references are pinned by SHA-256 (test_benchmark.py):
+# keep their bytes identical on every checkout, Windows included.
+*.json text eol=lf
