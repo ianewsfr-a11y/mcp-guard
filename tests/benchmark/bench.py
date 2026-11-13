@@ -1,9 +1,19 @@
-"""Detection benchmark: run the corpus through the real audit pipeline and
+"""Detection benchmark: run the corpora through the real audit pipeline and
 measure true/false positives, precision, recall and timings.
+
+Two corpora, reported apart:
+
+- `corpus.py` (historical): the Lot 0 corpus, against which detectors are tuned;
+- `holdout.py`: cases written before the capability rules, never tuned for,
+  including the official reference servers. It measures generalization.
 
 The audit is `pipeline.run_audit` with live captures injected: the same path
 as `inspect --live --combined`, minus the transport (`test_benchmark.py`
 checks that both agree). No network, no subprocess.
+
+A capability counts as detected when the combined rule's surface carries it
+(medium or high confidence). Low-confidence tags are "uncertain": reported
+with each case, never counted as detections.
 
     python tests/benchmark/bench.py                    # print the metrics
     python tests/benchmark/bench.py --update-baseline  # rewrite baseline.json
@@ -20,6 +30,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 from mcp_guard.capabilities import CAPABILITIES
@@ -29,21 +40,31 @@ from mcp_guard.rules import DEFAULT_RULESET
 
 HERE = Path(__file__).resolve().parent
 BASELINE = HERE / "baseline.json"
+FROZEN_BASELINE = HERE / "baseline-0.13.1.json"  # Lot 0 reference, never rewritten
 POISON_CATEGORIES = ("tool-poisoning",)
+CORPORA = ("historical", "holdout")
 
 
-def load_corpus() -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[dict[str, Any]]]:
-    sys.path.insert(0, str(HERE))
-    import corpus
-
-    return corpus.TOOLS, corpus.SETS, corpus.RESULTS
+def load(name: str) -> ModuleType:
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    return __import__({"historical": "corpus", "holdout": "holdout"}[name])
 
 
 def raw_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    if "raw" in tool:
+        return tool["raw"]
     properties = {name: {"type": "string", "description": desc}
                   for name, desc in tool["params"].items()}
     return {"name": tool["name"], "description": tool["description"],
             "inputSchema": {"type": "object", "properties": properties}}
+
+
+def truth(tool: dict[str, Any], capability: str) -> str:
+    """`yes`, `no` or `ambiguous`."""
+    if "truth" in tool:
+        return str(tool["truth"][capability])
+    return "yes" if capability in tool["caps"] else "no"
 
 
 def server_of(tool: dict[str, Any], set_name: str) -> str:
@@ -56,9 +77,8 @@ def set_tools(tools: list[dict[str, Any]], set_name: str) -> list[dict[str, Any]
 
 def audit_set(tools: list[dict[str, Any]], set_name: str) -> AuditRun:
     """One config per set: one server per `server` value, each live-captured."""
-    members = set_tools(tools, set_name)
     servers: dict[str, list[dict[str, Any]]] = {}
-    for tool in members:
+    for tool in set_tools(tools, set_name):
         servers.setdefault(server_of(tool, set_name), []).append(raw_tool(tool))
     config = {"mcpServers": {name: {"command": "bench-server"} for name in servers}}
     return run_audit(config, f"bench:{set_name}", DEFAULT_RULESET, live=servers, combined=True)
@@ -76,9 +96,9 @@ def _outcome(expected: bool, detected: bool) -> str:
 
 
 def poisoning_cases(tools: list[dict[str, Any]], runs: dict[str, AuditRun]) -> list[dict[str, Any]]:
-    """Every tool once, judged in the first set it belongs to."""
+    """Every tool with a `poisoned` truth, judged in the first set it belongs to."""
     cases = []
-    for tool in tools:
+    for tool in (t for t in tools if "poisoned" in t):
         run = runs[tool["sets"][0]]
         server = server_of(tool, tool["sets"][0])
         entry = next(e for e in run.entries
@@ -92,45 +112,65 @@ def poisoning_cases(tools: list[dict[str, Any]], runs: dict[str, AuditRun]) -> l
     return cases
 
 
-def _detected_caps(run: AuditRun) -> dict[tuple[str, str], set[str]]:
+def _caps_by_tool(run: AuditRun, uncertain: bool) -> dict[tuple[str, str], set[str]]:
     tags: dict[tuple[str, str], set[str]] = {}
-    for capability, tagged in (run.combined.surface if run.combined else {}).items():
+    combined = run.combined
+    if combined is None:
+        return tags
+    if uncertain:
+        for tool in getattr(combined, "uncertain", ()):
+            tags.setdefault((tool.server or "", tool.name), set()).update(
+                t.capability for t in tool.uncertain)
+        return tags
+    for capability, tagged in combined.surface.items():
         for tool in tagged:
             tags.setdefault((tool.server or "", tool.name), set()).add(capability)
     return tags
 
 
+def _capability_case(tool: dict[str, Any], capability: str, found: set[str],
+                     doubtful: set[str]) -> dict[str, Any]:
+    expected, detected = truth(tool, capability), capability in found
+    if expected == "ambiguous":
+        outcome = ("ambiguous-asserted" if detected else
+                   "ambiguous-uncertain" if capability in doubtful else "ambiguous-untagged")
+    else:
+        outcome = _outcome(expected == "yes", detected)
+    return {"id": tool["id"], "capability": capability, "expected": expected,
+            "detected": detected, "uncertain": capability in doubtful, "outcome": outcome}
+
+
 def capability_cases(tools: list[dict[str, Any]], sets: dict[str, dict[str, Any]],
                      runs: dict[str, AuditRun]) -> list[dict[str, Any]]:
-    """Each (tool, capability) of the combined-rule sets, once per tool."""
+    """Each (tool, capability) once, judged in the first set (in `sets` order)
+    that holds the tool, with its server context there. Poisoning cases of the
+    historical corpus outside the combined sets have no capability truth."""
     cases, seen = [], set()
-    for set_name in (s for s, v in sets.items() if v["expected_alert"] is not None):
-        detected = _detected_caps(runs[set_name])
+    for set_name, set_truth in sets.items():
+        found = _caps_by_tool(runs[set_name], uncertain=False)
+        doubtful = _caps_by_tool(runs[set_name], uncertain=True)
         for tool in set_tools(tools, set_name):
-            if tool["id"] in seen:
+            if tool["id"] in seen or ("poisoned" in tool and set_truth["expected_alert"] is None):
                 continue
             seen.add(tool["id"])
-            found = detected.get((server_of(tool, set_name), tool["name"]), set())
-            for capability in CAPABILITIES:
-                expected = capability in tool["caps"]
-                cases.append({"id": tool["id"], "capability": capability,
-                              "expected": expected, "detected": capability in found,
-                              "outcome": _outcome(expected, capability in found)})
+            key = (server_of(tool, set_name), tool["name"])
+            cases += [_capability_case(tool, c, found.get(key, set()), doubtful.get(key, set()))
+                      for c in CAPABILITIES]
     return cases
 
 
 def combined_cases(sets: dict[str, dict[str, Any]],
                    runs: dict[str, AuditRun]) -> list[dict[str, Any]]:
     cases = []
-    for set_name, truth in sets.items():
-        if truth["expected_alert"] is None:
+    for set_name, set_truth in sets.items():
+        if set_truth["expected_alert"] is None:
             continue
         combined = runs[set_name].combined
         status = combined.status if combined else "missing"
         alert = status in ("triggered", "partial")
-        cases.append({"set": set_name, "expected": truth["expected_alert"], "status": status,
-                      "reason": combined.reason if combined else "",
-                      "outcome": _outcome(truth["expected_alert"], alert)})
+        cases.append({"set": set_name, "expected": set_truth["expected_alert"],
+                      "status": status, "reason": combined.reason if combined else "",
+                      "outcome": _outcome(set_truth["expected_alert"], alert)})
     return cases
 
 
@@ -154,30 +194,43 @@ def _tally(cases: list[dict[str, Any]]) -> dict[str, Any]:
     return _rates(counts["tp"], counts["fp"], counts["fn"], counts["tn"])
 
 
-def measure() -> dict[str, Any]:
-    tools, sets, results = load_corpus()
-    runs = {name: audit_set(tools, name) for name in sets}
+def _ambiguous(cases: list[dict[str, Any]]) -> dict[str, int]:
+    return {k: sum(c["outcome"] == f"ambiguous-{k}" for c in cases)
+            for k in ("asserted", "uncertain", "untagged")}
+
+
+def measure_corpus(name: str) -> dict[str, Any]:
+    module = load(name)
+    tools, sets, results = module.TOOLS, module.SETS, module.RESULTS
+    runs = {set_name: audit_set(tools, set_name) for set_name in sets}
     poisoning = poisoning_cases(tools, runs)
     capabilities = capability_cases(tools, sets, runs)
     combined = combined_cases(sets, runs)
     in_results = result_cases(results, tools)
-    return {
-        "corpus": {"tools": len(tools), "sets": len(sets), "results": len(results)},
-        "metrics": {
-            "poisoning": _tally(poisoning),
-            "capabilities": {c: _tally([x for x in capabilities if x["capability"] == c])
-                             for c in CAPABILITIES},
-            "combined": _tally(combined),
-            "results_static_detector": _tally(in_results),
-        },
-        "cases": {"poisoning": poisoning, "capabilities": capabilities, "combined": combined,
-                  "results": in_results},
+    metrics: dict[str, Any] = {
+        "capabilities": {c: _tally([x for x in capabilities if x["capability"] == c])
+                         for c in CAPABILITIES},
+        "capabilities_ambiguous": _ambiguous(capabilities),
+        "capabilities_uncertain_flags": sum(c["uncertain"] for c in capabilities),
+        "combined": _tally(combined),
     }
+    if poisoning:
+        metrics["poisoning"] = _tally(poisoning)
+    if in_results:
+        metrics["results_static_detector"] = _tally(in_results)
+    return {"corpus": {"tools": len(tools), "sets": len(sets), "results": len(results)},
+            "metrics": metrics,
+            "cases": {"poisoning": poisoning, "capabilities": capabilities,
+                      "combined": combined, "results": in_results}}
+
+
+def measure() -> dict[str, Any]:
+    return {name: measure_corpus(name) for name in CORPORA}
 
 
 def timings(repeat: int) -> dict[str, Any]:
     """Median and max wall time per stage, in milliseconds (informative only)."""
-    tools, sets, results = load_corpus()
+    historical = load("historical")
 
     def clock(work: Callable[[], object]) -> dict[str, float]:
         samples = []
@@ -189,22 +242,30 @@ def timings(repeat: int) -> dict[str, Any]:
                 "max_ms": round(max(samples), 2)}
 
     return {"repeat": repeat,
-            "full_measure": clock(measure),
-            "audit_all_sets": clock(lambda: [audit_set(tools, s) for s in sets]),
-            "audit_largest_set": clock(lambda: audit_set(tools, "aggregator_fs")),
-            "results_detector": clock(lambda: result_cases(results, tools))}
+            "historical_measure": clock(lambda: measure_corpus("historical")),
+            "holdout_measure": clock(lambda: measure_corpus("holdout")),
+            "audit_largest_set": clock(lambda: audit_set(historical.TOOLS, "aggregator_fs")),
+            "results_detector": clock(lambda: result_cases(historical.RESULTS,
+                                                           historical.TOOLS))}
+
+
+def _rows(name: str, report: dict[str, Any]) -> list[str]:
+    metrics = report["metrics"]
+    named = [*((f"capability {c}", v) for c, v in metrics["capabilities"].items()),
+             ("combined rule", metrics["combined"])]
+    if "poisoning" in metrics:
+        named.insert(0, ("tool poisoning", metrics["poisoning"]))
+    if "results_static_detector" in metrics:
+        named.append(("tool results (static detector)", metrics["results_static_detector"]))
+    return [f"| {name} | {label} | {m['tp']} | {m['fp']} | {m['fn']} | {m['tn']} | "
+            f"{m['precision']} | {m['recall']} |" for label, m in named]
 
 
 def summary(report: dict[str, Any]) -> str:
-    rows = ["| Measure | TP | FP | FN | TN | Precision | Recall |", "|---|---|---|---|---|---|---|"]
-    metrics = report["metrics"]
-    named = [("tool poisoning", metrics["poisoning"]),
-             *((f"capability {c}", v) for c, v in metrics["capabilities"].items()),
-             ("combined rule", metrics["combined"]),
-             ("tool results (static detector)", metrics["results_static_detector"])]
-    for name, m in named:
-        rows.append(f"| {name} | {m['tp']} | {m['fp']} | {m['fn']} | {m['tn']} | "
-                    f"{m['precision']} | {m['recall']} |")
+    rows = ["| Corpus | Measure | TP | FP | FN | TN | Precision | Recall |",
+            "|---|---|---|---|---|---|---|---|"]
+    for name in CORPORA:
+        rows += _rows(name, report[name])
     return "\n".join(rows)
 
 
@@ -223,7 +284,7 @@ def main() -> None:
     elif args.summary:
         print(summary(report))
     else:
-        print(json.dumps(report["metrics"], indent=2))
+        print(json.dumps({n: report[n]["metrics"] for n in CORPORA}, indent=2))
 
 
 if __name__ == "__main__":

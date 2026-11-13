@@ -10,7 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmark"))
 import bench
-import corpus
+
+corpus = bench.load("historical")
 
 WANTED = sys.argv[1]
 SERVER = sys.argv[2] if len(sys.argv) > 2 else None

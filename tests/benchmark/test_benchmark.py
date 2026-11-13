@@ -3,9 +3,11 @@
 A failure lists the cases whose outcome changed. A regression must be fixed;
 an improvement is recorded on purpose with
 `python tests/benchmark/bench.py --update-baseline`, so the diff of
-`baseline.json` shows it in review.
+`baseline.json` shows it in review. `baseline-0.13.1.json` is the Lot 0
+reference and is never rewritten.
 """
 
+import hashlib
 import json
 import re
 import subprocess
@@ -13,27 +15,31 @@ import sys
 from pathlib import Path
 
 import bench
-import corpus
 import pytest
 
 from mcp_guard.capabilities import CAPABILITIES
 
 HERE = Path(__file__).resolve().parent
 SERVER = HERE.parent / "fixtures" / "bench_server.py"
+FROZEN_SHA256 = "68df2840704bb1c5cc78c4a5042ab3e8788ebddef02d5abe613a0fddc1cb1cff"
+
+
+def _key(case: dict) -> str:
+    return json.dumps({k: v for k, v in case.items()
+                       if k not in ("outcome", "detected", "uncertain", "risk", "categories",
+                                    "status", "reason", "signals")}, sort_keys=True)
 
 
 def _changes(baseline: dict, current: dict) -> list[str]:
     lines = []
-    for group, cases in current["cases"].items():
-        before = {json.dumps({k: v for k, v in c.items() if k not in ("outcome",)},
-                             sort_keys=True): c["outcome"] for c in baseline["cases"][group]}
-        for case in cases:
-            key = json.dumps({k: v for k, v in case.items() if k not in ("outcome",)},
-                             sort_keys=True)
-            if before.get(key) != case["outcome"]:
-                name = case.get("id") or case.get("set")
-                lines.append(f"{group} {name} {case.get('capability', '')}: "
-                             f"{before.get(key, 'new or changed case')} -> {case['outcome']}")
+    for corpus_name in bench.CORPORA:
+        for group, cases in current[corpus_name]["cases"].items():
+            before = {_key(c): c["outcome"] for c in baseline[corpus_name]["cases"][group]}
+            for case in cases:
+                if before.get(_key(case)) != case["outcome"]:
+                    name = case.get("id") or case.get("set")
+                    lines.append(f"{corpus_name} {group} {name} {case.get('capability', '')}: "
+                                 f"{before.get(_key(case), 'new case')} -> {case['outcome']}")
     return lines
 
 
@@ -46,42 +52,53 @@ def report():
 def test_outcomes_match_the_baseline(report):
     baseline = json.loads(bench.BASELINE.read_text(encoding="utf-8"))
     changes = _changes(baseline, report)
-    assert not changes and report["metrics"] == baseline["metrics"], (
+    same = all(report[n]["metrics"] == baseline[n]["metrics"] for n in bench.CORPORA)
+    assert not changes and same, (
         "benchmark outcomes changed (update the baseline only for an intended improvement):\n"
         + "\n".join(changes or ["metrics differ"]))
 
 
 @pytest.mark.unit
-def test_a_changed_outcome_is_reported(report):
-    """The comparison itself: one flipped case must be named."""
-    altered = json.loads(json.dumps(report))
-    case = altered["cases"]["poisoning"][0]
-    case["outcome"] = "fn" if case["outcome"] == "tp" else "tp"
-    changes = _changes(altered, report)
-    assert len(changes) == 1 and changes[0].startswith(f"poisoning {case['id']}")
+def test_the_lot0_reference_is_frozen():
+    digest = hashlib.sha256(bench.FROZEN_BASELINE.read_bytes()).hexdigest()
+    assert digest == FROZEN_SHA256
 
 
 @pytest.mark.unit
-def test_corpus_is_well_formed():
-    ids = [t["id"] for t in corpus.TOOLS] + [r["id"] for r in corpus.RESULTS]
+def test_a_changed_outcome_is_reported(report):
+    altered = json.loads(json.dumps(report))
+    case = altered["historical"]["cases"]["poisoning"][0]
+    case["outcome"] = "fn" if case["outcome"] == "tp" else "tp"
+    changes = _changes(altered, report)
+    assert len(changes) == 1 and changes[0].startswith(f"historical poisoning {case['id']}")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("corpus_name", bench.CORPORA)
+def test_corpus_is_well_formed(corpus_name):
+    module = bench.load(corpus_name)
+    ids = [t["id"] for t in module.TOOLS] + [r["id"] for r in module.RESULTS]
     assert len(ids) == len(set(ids))
-    for tool in corpus.TOOLS:
-        assert tool["sets"] and set(tool["sets"]) <= set(corpus.SETS), tool["id"]
-        assert set(tool["caps"]) <= set(CAPABILITIES), tool["id"]
-    for name in corpus.SETS:
-        assert bench.set_tools(corpus.TOOLS, name), name
-    names = {}
-    for tool in corpus.TOOLS:  # a tool name is unique within each server of a set
+    for tool in module.TOOLS:
+        assert tool["sets"] and set(tool["sets"]) <= set(module.SETS), tool["id"]
+        for capability in CAPABILITIES:
+            assert bench.truth(tool, capability) in ("yes", "no", "ambiguous"), tool["id"]
+    for name in module.SETS:
+        assert bench.set_tools(module.TOOLS, name), name
+    names = set()
+    for tool in module.TOOLS:  # a tool name is unique within each server of a set
         for set_name in tool["sets"]:
             key = (set_name, bench.server_of(tool, set_name), tool["name"])
             assert key not in names, key
-            names[key] = tool["id"]
+            names.add(key)
 
 
 @pytest.mark.unit
 def test_corpus_is_synthetic_only():
-    """The public corpus stays made up: only its fictional servers, and every
-    host or address under .invalid."""
+    """The historical corpus stays made up: only its fictional servers, and
+    every host or address under .invalid. (The holdout's official servers are
+    the public reference servers already in tests/fixtures.)"""
+    corpus = bench.load("historical")
     assert {t["server"] for t in corpus.TOOLS} <= {None, "feedhub", "files", "workspace"}
     text = json.dumps([corpus.TOOLS, corpus.SETS, corpus.RESULTS], ensure_ascii=False).lower()
     hosts = set(re.findall(r"https?://([a-z0-9.-]+)", text)) | set(
@@ -90,24 +107,29 @@ def test_corpus_is_synthetic_only():
 
 
 @pytest.mark.unit
-def test_every_measure_has_both_classes(report):
+@pytest.mark.parametrize("corpus_name", bench.CORPORA)
+def test_every_measure_has_both_classes(report, corpus_name):
     """A measure without positives or negatives would hide regressions."""
+    metrics = report[corpus_name]["metrics"]
     for name in ("poisoning", "combined", "results_static_detector"):
-        m = report["metrics"][name]
-        assert m["tp"] + m["fn"] > 0 and m["fp"] + m["tn"] > 0, name
-    for capability, m in report["metrics"]["capabilities"].items():
+        if name in metrics:
+            m = metrics[name]
+            assert m["tp"] + m["fn"] > 0 and m["fp"] + m["tn"] > 0, name
+    for capability, m in metrics["capabilities"].items():
         assert m["tp"] + m["fn"] > 0 and m["fp"] + m["tn"] > 0, capability
 
 
 @pytest.mark.unit
 def test_summary_lists_every_measure(report):
     table = bench.summary(report)
-    assert table.count("\n") == 2 + 1 + len(CAPABILITIES) + 2 - 1
+    historical = 1 + len(CAPABILITIES) + 1 + 1  # poisoning, capabilities, combined, results
+    holdout = len(CAPABILITIES) + 1
+    assert table.count("\n") == 1 + historical + holdout
 
 
 def _live(set_name: str, tmp_path: Path) -> list:
-    servers = sorted({bench.server_of(t, set_name) for t in bench.set_tools(corpus.TOOLS,
-                                                                              set_name)})
+    tools = bench.load("historical").TOOLS
+    servers = sorted({bench.server_of(t, set_name) for t in bench.set_tools(tools, set_name)})
     config = tmp_path / f"{set_name}.json"
     config.write_text(json.dumps({"mcpServers": {
         name: {"command": sys.executable, "args": [str(SERVER), set_name, name]}
@@ -124,7 +146,7 @@ def _live(set_name: str, tmp_path: Path) -> list:
 def test_in_process_audit_matches_inspect_live(set_name, tmp_path):
     """The benchmark skips the transport; the findings must be the same."""
     live = _live(set_name, tmp_path)
-    run = bench.audit_set(corpus.TOOLS, set_name)
+    run = bench.audit_set(bench.load("historical").TOOLS, set_name)
     expected = sorted((e.kind, e.server, e.name, e.risk.name,
                        tuple(sorted(f.category for f in e.findings)))
                       for e in run.entries if e.kind == "tool")
