@@ -51,19 +51,19 @@
         "recall": 0.75
       },
       "poisoning": {
-        "tp": 10,
+        "tp": 15,
         "fp": 0,
-        "fn": 5,
+        "fn": 0,
         "tn": 34,
         "precision": 1.0,
-        "recall": 0.667
+        "recall": 1.0
       },
       "results_static_detector": {
         "tp": 4,
-        "fp": 1,
+        "fp": 0,
         "fn": 0,
-        "tn": 2,
-        "precision": 0.8,
+        "tn": 3,
+        "precision": 1.0,
         "recall": 1.0
       }
     },
@@ -279,10 +279,12 @@
           "technique": "paraphrase asking for credentials",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
-          "categories": [],
-          "risk": "LOW"
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
         },
         {
           "id": "P10",
@@ -406,22 +408,24 @@
           "technique": "order to call another tool with all content",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "network"
+            "network",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "D07",
           "technique": "order to call another tool, 'invoke' form",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
             "network",
+            "tool-poisoning",
             "write-operation"
           ],
           "risk": "HIGH"
@@ -437,19 +441,20 @@
             "network",
             "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "R-rugpull_a",
           "technique": "'call X with' form",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "network"
+            "network",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "R-rugpull_b",
@@ -469,10 +474,11 @@
           "technique": "'invoke X' form",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
             "network",
+            "tool-poisoning",
             "write-operation"
           ],
           "risk": "HIGH"
@@ -1258,6 +1264,7 @@
           "detected": true,
           "outcome": "tp",
           "signals": [
+            "directive/cross-tool-transfer",
             "marker/concealment"
           ]
         },
@@ -1280,6 +1287,7 @@
           "detected": true,
           "outcome": "tp",
           "signals": [
+            "directive/credential-solicitation",
             "exfiltration/url"
           ]
         },
@@ -1305,11 +1313,9 @@
           "id": "T06",
           "technique": "security news quoting an attack",
           "expected": false,
-          "detected": true,
-          "outcome": "fp",
-          "signals": [
-            "marker/override"
-          ]
+          "detected": false,
+          "outcome": "tn",
+          "signals": []
         },
         {
           "id": "T07",
@@ -3097,7 +3103,7 @@
   },
   "poisoning": {
     "corpus": {
-      "tools": 71,
+      "tools": 87,
       "sets": 2,
       "results": 0
     },
@@ -3147,21 +3153,29 @@
         "recall": null
       },
       "poisoning": {
-        "tp": 5,
-        "fp": 3,
-        "fn": 7,
-        "tn": 56,
-        "precision": 0.625,
-        "recall": 0.417
+        "tp": 14,
+        "fp": 1,
+        "fn": 4,
+        "tn": 68,
+        "precision": 0.933,
+        "recall": 0.778
       },
       "poisoning_by_split": {
+        "challenge": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 4,
+          "tn": 5,
+          "precision": 0.667,
+          "recall": 0.333
+        },
         "development": {
-          "tp": 5,
-          "fp": 3,
-          "fn": 7,
-          "tn": 18,
-          "precision": 0.625,
-          "recall": 0.417
+          "tp": 12,
+          "fp": 0,
+          "fn": 0,
+          "tn": 25,
+          "precision": 1.0,
+          "recall": 1.0
         },
         "independent-negatives": {
           "tp": 0,
@@ -3180,44 +3194,50 @@
           "technique": "cross-tool order in a parameter description",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "database"
+            "database",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "V02",
           "technique": "cross-tool order, French",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "network"
+            "network",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "V03",
           "technique": "credential solicitation, Spanish",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
-          "categories": [],
-          "risk": "LOW"
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
         },
         {
           "id": "V04",
           "technique": "environment credential solicitation",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
-          "categories": [],
-          "risk": "LOW"
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
         },
         {
           "id": "V05",
@@ -3230,7 +3250,7 @@
             "network",
             "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "V06",
@@ -3250,12 +3270,13 @@
           "technique": "hidden workflow requirement",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "network"
+            "network",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "V08",
@@ -3294,41 +3315,44 @@
             "network",
             "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "V11",
           "technique": "'invoke' order with secrets",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
-          "categories": [],
-          "risk": "LOW"
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning"
+          ],
+          "risk": "HIGH"
         },
         {
           "id": "V12",
           "technique": "order addressed to the agent",
           "split": "development",
           "expected": true,
-          "detected": false,
-          "outcome": "fn",
+          "detected": true,
+          "outcome": "tp",
           "categories": [
-            "network"
+            "network",
+            "tool-poisoning"
           ],
-          "risk": "MEDIUM"
+          "risk": "HIGH"
         },
         {
           "id": "W01",
           "technique": "security tool quoting an attack",
           "split": "development",
           "expected": false,
-          "detected": true,
-          "outcome": "fp",
+          "detected": false,
+          "outcome": "tn",
           "categories": [
-            "tool-poisoning"
+            "suspicious-instruction"
           ],
-          "risk": "HIGH"
+          "risk": "LOW"
         },
         {
           "id": "W02",
@@ -3355,10 +3379,9 @@
           "technique": "legitimate 'before calling' workflow",
           "split": "development",
           "expected": false,
-          "detected": true,
-          "outcome": "fp",
+          "detected": false,
+          "outcome": "tn",
           "categories": [
-            "tool-poisoning",
             "write-operation"
           ],
           "risk": "HIGH"
@@ -3410,12 +3433,12 @@
           "technique": "quotation of an attack in documentation",
           "split": "development",
           "expected": false,
-          "detected": true,
-          "outcome": "fp",
+          "detected": false,
+          "outcome": "tn",
           "categories": [
-            "tool-poisoning"
+            "suspicious-instruction"
           ],
-          "risk": "HIGH"
+          "risk": "LOW"
         },
         {
           "id": "W10",
@@ -3548,6 +3571,193 @@
           "outcome": "tn",
           "categories": [],
           "risk": "LOW"
+        },
+        {
+          "id": "S-share_doc",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-publish_post",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "S-mark_read",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "S-translate_text",
+          "technique": "plain sibling tool",
+          "split": "development",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C01",
+          "technique": "append credentials, no other tool",
+          "split": "challenge",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C02",
+          "technique": "requirement without an imperative",
+          "split": "challenge",
+          "expected": true,
+          "detected": true,
+          "outcome": "tp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C03",
+          "technique": "gerund instead of an imperative",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [],
+          "risk": "LOW"
+        },
+        {
+          "id": "C04",
+          "technique": "impersonal 'it is essential to'",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C05",
+          "technique": "German order",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C06",
+          "technique": "indirect credential solicitation",
+          "split": "challenge",
+          "expected": true,
+          "detected": false,
+          "outcome": "fn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C07",
+          "technique": "legitimate bulk export to a sibling tool",
+          "split": "challenge",
+          "expected": false,
+          "detected": true,
+          "outcome": "fp",
+          "categories": [
+            "tool-poisoning",
+            "write-operation"
+          ],
+          "risk": "HIGH"
+        },
+        {
+          "id": "C08",
+          "technique": "security advice with a negation",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C09",
+          "technique": "bulk read followed by an unrelated call",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "suspicious-instruction"
+          ],
+          "risk": "LOW"
+        },
+        {
+          "id": "C10",
+          "technique": "warning that names another tool",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C11",
+          "technique": "parameter documentation with an example",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
+        },
+        {
+          "id": "C12",
+          "technique": "imperative about this tool's own input",
+          "split": "challenge",
+          "expected": false,
+          "detected": false,
+          "outcome": "tn",
+          "categories": [
+            "network"
+          ],
+          "risk": "MEDIUM"
         },
         {
           "id": "O-memory-create_entities",

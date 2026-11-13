@@ -19,11 +19,13 @@ import re
 import unicodedata
 from typing import Literal, NamedTuple
 
+from .directives import directives, quoted_example
 from .models import Finding, Risk, ToolSpec
 from .surfaces import tool_fields
 from .text import escaped, printable
 
 CATEGORY = "tool-poisoning"
+SUSPICIOUS = "suspicious-instruction"  # ambiguous signals only: LOW, not poisoning
 MAX_TEXT_CHARS = 20_000  # per text: keeps every regex fast on hostile input
 _SNIPPET = 60
 _MAX_SIGNAL_EVIDENCE = 260  # per signal, so every label shows
@@ -74,8 +76,16 @@ def look_alikes(text: str) -> list[tuple[int, str]]:
 #                    tags, HTML comments to the model, long base64 blocks)
 #   cross-reference  instructions about another tool ("before calling X")
 #   exfiltration     a URL or a file path in a descriptive text
-# Severity: an injection marker, invisible text or two distinct signals
-# HIGH; one other signal (URL, path, cross-reference) MEDIUM. Never CRITICAL.
+#   directive        an order to the agent judged in context (`directives`):
+#                    credential solicitation, content sent to another tool,
+#                    a claim of priority over the user, a hidden requirement
+# and, kept apart, `ambiguous`: an unverified call to another tool, or a
+# signal found inside a quotation that presents examples. Ambiguous signals
+# never make a `tool-poisoning` finding; alone, they give a LOW
+# `suspicious-instruction` finding.
+# Severity: an injection marker, invisible text, a directive or two distinct
+# signals HIGH; one other signal (URL, path, cross-reference) MEDIUM. Never
+# CRITICAL.
 
 _OVERRIDE = re.compile(
     r"\b(ignore|disregard|forget)\s+(all\s+|any\s+|the\s+|your\s+)?"
@@ -148,7 +158,8 @@ _FILE_PATH = re.compile(  # an absolute or home path, not a relative name
 
 _URLISH = frozenset({"exfiltration/url", "exfiltration/file-path"})
 
-Kind = Literal["marker", "invisible", "cross-reference", "exfiltration"]
+Kind = Literal["marker", "invisible", "cross-reference", "exfiltration", "directive",
+               "ambiguous"]
 
 
 class Signal(NamedTuple):
@@ -281,28 +292,57 @@ def _as_written(raw: str) -> str:
     return escaped(raw[start:start + _SNIPPET])
 
 
+def _pattern_signals(normalized: str, exfiltration: bool) -> list[Signal]:
+    """The fixed patterns; a match inside a quotation that presents examples
+    ("phrases such as 'ignore previous instructions'") is ambiguous."""
+    found = []
+    for item in _ON_NORMALIZED:
+        if not exfiltration and item.id in _URLISH:
+            continue
+        match = item.pattern.search(normalized)
+        if not match:
+            continue
+        excerpt = _excerpt(normalized, match.start())
+        if quoted_example(normalized, match.start(), match.end()):
+            found.append(Signal(item.id + "/quoted", "ambiguous",
+                                item.label + " (quoted as an example)", "", excerpt))
+        else:
+            found.append(Signal(item.id, item.kind, item.label, "", excerpt))
+    return found
+
+
+def _directive_signals(normalized: str, known_tools: frozenset[str],
+                       own_name: str) -> list[Signal]:
+    found = [Signal(d.id, "ambiguous" if d.ambiguous else "directive", d.label, "",
+                    _excerpt(normalized, d.start))
+             for d in directives(normalized, known_tools, own_name)]
+    if any(s.kind == "directive" for s in found):  # "before calling X", now with a reason
+        sequencing = _sequencing(normalized, known_tools, own_name)
+        if sequencing:
+            found.append(sequencing)
+    return found
+
+
 def signals(text: str, known_tools: frozenset[str] = frozenset(),
-            own_name: str = "", exfiltration: bool = True) -> list[Signal]:
+            own_name: str = "", exfiltration: bool = True,
+            ambiguous: bool = False) -> list[Signal]:
     """Every signal in one raw string. Matching runs on the normalized form
     (HTML entities, NFKC, look-alike letters, invisible characters), so the
     cheap bypasses do not hide anything; invisible-text signals run on the
     raw form, since normalization removes exactly what they look for.
     `exfiltration=False` for fields that are URLs or paths by nature (a
-    resource URI)."""
+    resource URI). `ambiguous=True` also returns the ambiguous signals (kind
+    `ambiguous`), which callers must not report as poisoning."""
     raw, cut = _scanned(text)
     found = _raw_signals(raw) + ([cut] if cut else [])
     normalized = normalize(raw)
-    for item in _ON_NORMALIZED:
-        if not exfiltration and item.id in _URLISH:
-            continue
-        match = item.pattern.search(normalized)
-        if match:
-            found.append(Signal(item.id, item.kind, item.label, "",
-                                _excerpt(normalized, match.start())))
-    for extra in (_comment_signal(normalized),
-                  _sequencing(normalized, known_tools, own_name)):
-        if extra:
-            found.append(extra)
+    found += _pattern_signals(normalized, exfiltration)
+    comment = _comment_signal(normalized)
+    if comment:
+        found.append(comment)
+    found += _directive_signals(normalized, known_tools, own_name)
+    if not ambiguous:
+        found = [s for s in found if s.kind != "ambiguous"]
     if normalized != " ".join(raw.split()):  # show what the text really says
         written = _as_written(raw)
         found = [s._replace(raw=s.raw or written) for s in found]
@@ -314,7 +354,8 @@ def severity(found: list[Signal]) -> Risk:
     MEDIUM for one other signal (a URL, a path, a cross-reference), which
     legitimate docs often contain. Never CRITICAL: these are heuristics."""
     distinct = {s.id for s in found}
-    if len(distinct) >= 2 or any(s.kind in ("marker", "invisible") for s in found):
+    if len(distinct) >= 2 or any(s.kind in ("marker", "invisible", "directive")
+                                 for s in found):
         return Risk.HIGH
     return Risk.MEDIUM
 
@@ -365,17 +406,30 @@ def escalated(findings: list[Finding], threshold: int = 3) -> list[Finding]:
             for f in findings]
 
 
+def suspicious(server: str | None, element: str, field: str, found: list[Signal],
+               where: str | None = None) -> Finding:
+    """Ambiguous signals only: a LOW finding of its own category, never poisoning."""
+    return Finding(category=SUSPICIOUS, risk=Risk.LOW,
+                   evidence=evidence(where or field, found), field=field,
+                   id=finding_id(SUSPICIOUS, server, element, field))
+
+
 def detect_poisoning(tool: ToolSpec, server: str | None = None,
                      known_tools: frozenset[str] = frozenset()) -> tuple[Finding, ...]:
-    """One `tool-poisoning` finding per field of the tool that carries a signal."""
+    """One `tool-poisoning` finding per field of the tool that carries a
+    signal; a `suspicious-instruction` finding (LOW) for a field whose only
+    signals are ambiguous."""
     fields, skipped = tool_fields(tool)
-    results = []
+    results, doubts = [], []
     for field, text in fields:
-        found = signals(text, known_tools, tool.name)
-        if found:
-            results.append(finding(CATEGORY, server, tool.name, field, found))
+        found = signals(text, known_tools, tool.name, ambiguous=True)
+        strong = [s for s in found if s.kind != "ambiguous"]
+        if strong:
+            results.append(finding(CATEGORY, server, tool.name, field, strong))
+        elif found:
+            doubts.append(suspicious(server, tool.name, field, found))
     if skipped:
         results.append(finding(CATEGORY, server, tool.name, "(unscanned fields)", [Signal(
             "invisible/unscanned", "invisible",
             f"{skipped} field(s) not scanned: too many or too long", "", "")]))
-    return tuple(escalated(results))
+    return (*escalated(results), *doubts)

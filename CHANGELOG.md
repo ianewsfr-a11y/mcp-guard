@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Tool poisoning: directives judged in context (V2, Lot 3)
+- **An imperative is no longer evidence on its own (decision D4).** Orders to the agent are cut into clauses and judged by what they ask. Credential solicitation, bulk content sent to another tool or an external destination, a claim of priority over the user's request and a hidden "compliance requirement" are new HIGH signals (`directive/...`). Documentation of a workflow ("with that id to poll", "to avoid duplicates", "use X to add...", "instead") is not.
+- **"Before calling X" needs a reason.** The `cross-reference/sequencing` signal is reported only next to such a directive. "Before calling create_issue, use search_issues to avoid duplicates" no longer raises a MEDIUM finding.
+- **New LOW category `suspicious-instruction`**, never `tool-poisoning`: an addressed call to another tool with no harmful object, or a poisoning signal inside a quotation that presents examples ("phrases such as 'ignore previous instructions'"). It is listed in SARIF only when reported. `signals()` returns ambiguous signals only with `ambiguous=True`, so callers that only expected poisoning signals see no change.
+- **Common phrasings in French and Spanish** are recognized ("appelle X avec tout son contenu", "incluye la clave API").
+- Every new pattern is linear on hostile text (bounded repetitions). A 20,000-character adversarial description is analyzed in under 40 ms.
+- Benchmark: historical poisoning goes from 10 TP / 0 FP / 5 FN / 34 TN to 15 / 0 / 0 / 34. A post-implementation challenge set, never tuned for, reports the remaining blind spots (gerunds, impersonal phrasing, German) and one false positive (a legitimate bulk export to a sibling tool).
+
 ### Security: schema patterns can no longer stall the scan
 - **A server-supplied `pattern` could hang `inspect --combined`.** Lot 2 ran every string parameter's `pattern` through Python's backtracking `re` to judge whether it bounds a path. An 11-character pattern such as `^(.|.|.)*Z$` kept the scan busy for minutes. This affected only the unreleased Lot 2 code, never a published version. Patterns are now run only when they belong to a subset whose cost is bounded by construction: no quantified group, no backreference or lookaround, and at most three quantifiers. Any other pattern is "not judged" and counts as unbounded, the cautious side. Regression tests run the hostile patterns in a child process with a timeout.
 

@@ -127,7 +127,7 @@ def test_summary_lists_every_measure(report):
     table = bench.summary(report)
     historical = 1 + len(CAPABILITIES) + 1 + 1  # poisoning, capabilities, combined, results
     holdout = len(CAPABILITIES) + 1
-    poisoning = 2  # one row per split of the Lot 3 poisoning corpus
+    poisoning = len(report["poisoning"]["metrics"]["poisoning_by_split"])  # one row per split
     assert table.count("\n") == 1 + historical + holdout + poisoning + 1  # + coverage
 
 
