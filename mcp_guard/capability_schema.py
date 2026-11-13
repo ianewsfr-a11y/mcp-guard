@@ -71,12 +71,60 @@ def _properties(tool: ToolSnapshot) -> dict[str, dict[str, Any]]:
 _ESCAPES = ("../../etc/passwd", "/etc/passwd", r"C:\Windows\win.ini", "~/.ssh/id_rsa",
             r"..\..\secrets.json")
 MAX_PATTERN = 256
+# The pattern comes from the server. Python's `re` backtracks: "^(.|.|.)*Z$"
+# (11 characters) runs for minutes on a 16-character probe, and a run of
+# adjacent ".*" grows polynomially with their number. So a pattern is only run
+# when it belongs to a subset whose cost is bounded: no quantified group, no
+# backreference or lookaround, at most MAX_QUANTIFIERS quantifiers. With probes
+# of at most 25 characters, a search then costs at most about 25^5 steps.
+MAX_QUANTIFIERS = 3
+_QUANTIFIER = re.compile(r"[*+?]|\{\d*,?\d*\}")
+_UNSAFE_GROUP = re.compile(r"\(\?(?:[=!]|<[=!]|\()")  # lookarounds, conditionals
+_BACKREFERENCE = re.compile(r"\\(?:[1-9]|g<|k<)|\(\?P=")
+
+
+def _strip_classes_and_escapes(pattern: str) -> str | None:
+    """The pattern with escapes and character classes replaced by `x`, so
+    their content is not read as quantifiers or groups. None if unbalanced."""
+    out, i = [], 0
+    while i < len(pattern):
+        char = pattern[i]
+        if char == "\\":
+            out.append("x")
+            i += 2
+            continue
+        if char == "[":
+            end = i + 1 + (pattern[i + 1:i + 2] == "^")
+            end += pattern[end:end + 1] == "]"  # a leading "]" is a literal
+            while end < len(pattern) and pattern[end] != "]":
+                end += 2 if pattern[end] == "\\" else 1
+            if end >= len(pattern):
+                return None
+            out.append("x")
+            i = end + 1
+            continue
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
+def safe_to_run(pattern: str) -> bool:
+    """Whether running `pattern` on the escape probes is cheap by construction."""
+    if _BACKREFERENCE.search(pattern) or _UNSAFE_GROUP.search(pattern):
+        return False
+    skeleton = _strip_classes_and_escapes(pattern)
+    if skeleton is None:
+        return False
+    if re.search(r"\)\s*(?:[*+?]|\{\d)", skeleton):  # a quantified group
+        return False
+    return len(_QUANTIFIER.findall(skeleton)) <= MAX_QUANTIFIERS
 
 
 def permissive_pattern(pattern: object) -> bool:
     """True when the declared pattern lets an arbitrary path through, or
-    cannot be judged (not a string, too long, not a valid regex)."""
-    if not isinstance(pattern, str) or len(pattern) > MAX_PATTERN:
+    cannot be judged (not a string, too long, too costly to run safely, not a
+    valid regex). Not judged means not bounded: the cautious side."""
+    if not isinstance(pattern, str) or len(pattern) > MAX_PATTERN or not safe_to_run(pattern):
         return True
     try:
         compiled = re.compile(pattern)

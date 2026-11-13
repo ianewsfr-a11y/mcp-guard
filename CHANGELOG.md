@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Security: schema patterns can no longer stall the scan
+- **A server-supplied `pattern` could hang `inspect --combined`.** Lot 2 ran every string parameter's `pattern` through Python's backtracking `re` to judge whether it bounds a path. An 11-character pattern such as `^(.|.|.)*Z$` kept the scan busy for minutes. This affected only the unreleased Lot 2 code, never a published version. Patterns are now run only when they belong to a subset whose cost is bounded by construction: no quantified group, no backreference or lookaround, and at most three quantifiers. Any other pattern is "not judged" and counts as unbounded, the cautious side. Regression tests run the hostile patterns in a child process with a timeout.
+
 ### Combined rule: coverage (V2, Lot 2)
 - **`partial` now also means "one link rests only on low-confidence evidence".** When two capabilities are confirmed and the third could only come from a low-confidence tag (a free `config_path` with no sign its content is returned, a sender that says it makes no request), the verdict is `partial` and names those tools, instead of `clear`. Low-confidence evidence is never counted as confirmed and never raises a finding. With two capabilities missing, doubts are reported but the verdict stays `clear`.
 - **Every verdict explains itself.** A `coverage` block (JSON `combined.coverage`, SARIF notification `properties.coverage`, both additive) lists the confirmed and missing capabilities, the uncertain tools that would complete the chain, the other doubts, the servers not evaluated, the malformed tools, the reasons and the limits. The table names the uncertain link and states that no status certifies a config as safe.

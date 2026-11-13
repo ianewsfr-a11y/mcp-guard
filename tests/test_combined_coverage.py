@@ -140,7 +140,9 @@ def test_a_negated_sender_is_a_doubt_not_a_clear():
 @pytest.mark.unit
 @pytest.mark.parametrize("pattern, permissive", [
     (".*", True), ("[a-z]+", True), ("^[^/]+$", True), ("(", True), ("x" * 300, True),
-    (42, True), ("^[a-z0-9_-]+\\.yaml$", False), ("^(?:[a-z]+/)*[a-z]+\\.json$", False),
+    (42, True), ("^[a-z0-9_-]+\\.yaml$", False), ("^[a-z]+/[a-z]+\\.json$", False),
+    # a quantified group is not run (backtracking risk): not judged, so not a bound
+    ("^(?:[a-z]+/)*[a-z]+\\.json$", True),
 ])
 def test_only_patterns_that_reject_escapes_bound_a_path(pattern, permissive):
     assert permissive_pattern(pattern) is permissive
