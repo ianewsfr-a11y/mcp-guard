@@ -322,7 +322,14 @@ When the active servers cover all three, it reports **one** finding for the whol
 
 On the official servers, `memory` + `fetch` is enough to trigger it. `fetch` is the cut point: it is both the untrusted input (it declares `openWorldHint`) and the outbound channel (it requests any URL).
 
-Tags come from keywords, from the MCP annotation `openWorldHint` (which only adds `ingests_untrusted`, since many servers set it on every tool), or from your rules file. A rule wins over an annotation, which wins over a keyword. Annotations are declared by the server, so they can add a tag but never remove one.
+Tags come from five sources, by priority: your rules file, the MCP annotation `openWorldHint` (which only adds `ingests_untrusted`, since many servers set it on every tool), keywords, the input schema, and the server context. Annotations are declared by the server, so they can add a tag but never remove one.
+
+- **Input schema.** A free string parameter (no `enum`, `const` or `pattern`) named like a path (`config_path`, `file`, `dir`...) or a URL (`url`, `webhook_url`, `format: uri`...) is evidence, not proof. A path parameter on a tool that says it reads and returns something gives `reads_private`. A path parameter on a tool that only checks it, or whose role is unclear ("Apply settings"), gives a low-confidence tag. A path to write to (`output_path`) is not a read. A URL parameter gives `sends_external` when the tool sends to it or fetches it (and then `ingests_untrusted` too), and a low-confidence tag otherwise ("Tell whether a string is a valid URL").
+- **Server context.** A tool that reads back stored items, articles, digests or messages ("Read the items of a run stage") gets `ingests_untrusted` when another tool of the same server brings third-party content in.
+- **Negation.** "Makes no network request" demotes the words it negates to low confidence; it never removes a tag. The description comes from the server, and any word that is not negated keeps the tag. A negation cannot cancel the tool's name either: `send_report` described as "Does not send anything" still sends.
+- **The word `url` alone** is not third-party content ("Uses the webhook URL from an environment variable"), and a URL is only a request when a verb says so.
+
+Each tag has a confidence, shown in the JSON output: `high` (your rules), `medium` (the server's words, schema or context), or `low`. **Low-confidence tags are listed apart** (`uncertain` in the JSON output, "Uncertain, not counted" in the table): the rule does not count them, so a doubt is visible without raising an alert.
 
 To adjust:
 - tags, in the `capabilities` section of `--rules` (see [`examples/rules.yaml`](https://github.com/ianewsfr-a11y/mcp-guard/blob/main/examples/rules.yaml)). There, `remove` wins over `add`. Removed tags are listed in the JSON output under `suppressed_by_rules`.

@@ -4,9 +4,11 @@ A synthetic corpus with ground truth, run through the real audit pipeline. It me
 
 | File | Role |
 |---|---|
-| `corpus.py` | Tools, sets and tool results, with their ground truth. Everything is made up. Attacker hosts are under `.invalid` |
+| `corpus.py` | Historical corpus: tools, sets and tool results, with their ground truth. Everything is made up. Attacker hosts are under `.invalid`. Detectors are tuned against it |
+| `holdout.py` | Held-out corpus, written before the capability rules of v0.14 and never tuned for: synthetic cases (paths, URLs, negations, a mailbox, a news reader, private stores) and the 38 official reference tools of `tests/fixtures/official_tools.json`, annotated by what they do. Capability truth is `yes`, `no` or `ambiguous`; ambiguous cases are reported apart |
 | `bench.py` | Runs the corpus through `pipeline.run_audit` with live captures injected (the `inspect --live --combined` path, without the transport) and computes TP, FP, FN, TN, precision and recall |
-| `baseline.json` | The outcomes and metrics of the current release, case by case |
+| `baseline.json` | The outcomes and metrics of the current code, case by case, for both corpora |
+| `baseline-0.13.1.json` | The Lot 0 reference (v0.13.1, historical corpus only). Never rewritten; `test_benchmark.py` pins its SHA-256 |
 | `test_benchmark.py` | Fails when any outcome differs from the baseline. It also checks that the corpus is well formed and synthetic only, and that the in-process audit agrees with a real `inspect --live` on two sets (`tests/fixtures/bench_server.py`) |
 
 ```bash
@@ -28,7 +30,11 @@ python tests/benchmark/bench.py --update-baseline  # record an intended change
 - Keep both classes in every measure: `test_every_measure_has_both_classes` fails otherwise.
 - Never add text taken from a private audit or a real vulnerability report. `test_corpus_is_synthetic_only` accepts only the fictional servers and `.invalid` hosts.
 
+## Detected, uncertain, ambiguous
+
+A capability counts as detected when the combined rule's surface carries it, that is a tag of medium or high confidence. A low-confidence tag is "uncertain": it is recorded with the case and counted apart (`capabilities_uncertain_flags`), never as a detection. For an `ambiguous` truth, the outcome is `ambiguous-asserted` (tagged anyway: an over-classification to watch), `ambiguous-uncertain` (the doubt is shown) or `ambiguous-untagged`.
+
 ## Known limits
 
-- The corpus is small and was written by the people who write the detectors. Its rates describe this corpus, not MCP servers at large.
+- The corpora are small and were written by the people who write the detectors. Their rates describe these corpora, not MCP servers at large. The held-out corpus limits, but does not remove, that bias: once a held-out failure has been looked at, fixing it turns the case into a tuned one.
 - The tool-result measure applies the static poisoning detector to result texts. The proxy does not read tool results yet, so this is the reference point for that future work, not a claim about the proxy.

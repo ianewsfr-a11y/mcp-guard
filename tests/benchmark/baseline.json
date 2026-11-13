@@ -8,28 +8,28 @@
     "metrics": {
       "capabilities": {
         "reads_private": {
-          "tp": 3,
+          "tp": 4,
           "fp": 0,
-          "fn": 2,
+          "fn": 1,
           "tn": 19,
           "precision": 1.0,
-          "recall": 0.6
+          "recall": 0.8
         },
         "ingests_untrusted": {
-          "tp": 3,
-          "fp": 2,
-          "fn": 4,
-          "tn": 15,
-          "precision": 0.6,
-          "recall": 0.429
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "tn": 17,
+          "precision": 1.0,
+          "recall": 1.0
         },
         "sends_external": {
-          "tp": 3,
-          "fp": 1,
-          "fn": 2,
-          "tn": 18,
-          "precision": 0.75,
-          "recall": 0.6
+          "tp": 5,
+          "fp": 0,
+          "fn": 0,
+          "tn": 19,
+          "precision": 1.0,
+          "recall": 1.0
         }
       },
       "capabilities_ambiguous": {
@@ -37,14 +37,14 @@
         "uncertain": 0,
         "untagged": 0
       },
-      "capabilities_uncertain_flags": 0,
+      "capabilities_uncertain_flags": 2,
       "combined": {
-        "tp": 2,
-        "fp": 1,
-        "fn": 2,
-        "tn": 2,
-        "precision": 0.667,
-        "recall": 0.5
+        "tp": 3,
+        "fp": 0,
+        "fn": 1,
+        "tn": 3,
+        "precision": 1.0,
+        "recall": 0.75
       },
       "poisoning": {
         "tp": 10,
@@ -567,7 +567,7 @@
           "capability": "reads_private",
           "expected": "yes",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "fn"
         },
         {
@@ -718,9 +718,9 @@
           "id": "F-feedhub_run_pipeline",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "F-feedhub_run_pipeline",
@@ -766,9 +766,9 @@
           "id": "F-feedhub_get_digest",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "F-feedhub_get_digest",
@@ -790,9 +790,9 @@
           "id": "F-feedhub_send_webhook",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "F-feedhub_send_webhook",
@@ -814,9 +814,9 @@
           "id": "F-feedhub_get_items",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "F-feedhub_get_items",
@@ -998,9 +998,9 @@
           "id": "C08",
           "capability": "reads_private",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "C08",
@@ -1030,17 +1030,17 @@
           "id": "C09",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "C09",
           "capability": "sends_external",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "C10",
@@ -1062,9 +1062,9 @@
           "id": "C10",
           "capability": "sends_external",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "C11",
@@ -1078,17 +1078,17 @@
           "id": "C11",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "C11",
           "capability": "sends_external",
           "expected": "no",
-          "detected": true,
-          "uncertain": false,
-          "outcome": "fp"
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
         },
         {
           "id": "C12",
@@ -1178,16 +1178,16 @@
         {
           "set": "paraphrase",
           "expected": true,
-          "status": "clear",
-          "reason": "missing: reads_private, ingests_untrusted, sends_external",
-          "outcome": "fn"
+          "status": "triggered",
+          "reason": "",
+          "outcome": "tp"
         },
         {
           "set": "fp_trap",
           "expected": false,
-          "status": "triggered",
-          "reason": "",
-          "outcome": "fp"
+          "status": "clear",
+          "reason": "missing: ingests_untrusted, sends_external",
+          "outcome": "tn"
         }
       ],
       "results": [
@@ -1279,28 +1279,28 @@
           "recall": 0.88
         },
         "ingests_untrusted": {
-          "tp": 5,
-          "fp": 6,
-          "fn": 3,
-          "tn": 50,
-          "precision": 0.455,
-          "recall": 0.625
+          "tp": 8,
+          "fp": 1,
+          "fn": 0,
+          "tn": 55,
+          "precision": 0.889,
+          "recall": 1.0
         },
         "sends_external": {
           "tp": 9,
-          "fp": 3,
+          "fp": 1,
           "fn": 1,
-          "tn": 54,
-          "precision": 0.75,
+          "tn": 56,
+          "precision": 0.9,
           "recall": 0.9
         }
       },
       "capabilities_ambiguous": {
         "asserted": 2,
-        "uncertain": 0,
-        "untagged": 8
+        "uncertain": 2,
+        "untagged": 6
       },
-      "capabilities_uncertain_flags": 0,
+      "capabilities_uncertain_flags": 9,
       "combined": {
         "tp": 3,
         "fp": 0,
@@ -1390,7 +1390,7 @@
           "capability": "reads_private",
           "expected": "no",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "tn"
         },
         {
@@ -1414,8 +1414,8 @@
           "capability": "reads_private",
           "expected": "ambiguous",
           "detected": false,
-          "uncertain": false,
-          "outcome": "ambiguous-untagged"
+          "uncertain": true,
+          "outcome": "ambiguous-uncertain"
         },
         {
           "id": "L5",
@@ -1493,17 +1493,17 @@
           "id": "U2",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "U2",
           "capability": "sends_external",
           "expected": "no",
-          "detected": true,
-          "uncertain": false,
-          "outcome": "fp"
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
         },
         {
           "id": "U3",
@@ -1517,9 +1517,9 @@
           "id": "U3",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "U3",
@@ -1541,17 +1541,17 @@
           "id": "U4",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "U4",
           "capability": "sends_external",
           "expected": "ambiguous",
-          "detected": true,
-          "uncertain": false,
-          "outcome": "ambiguous-asserted"
+          "detected": false,
+          "uncertain": true,
+          "outcome": "ambiguous-uncertain"
         },
         {
           "id": "U5",
@@ -1565,9 +1565,9 @@
           "id": "U5",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "U5",
@@ -1613,17 +1613,17 @@
           "id": "U7",
           "capability": "ingests_untrusted",
           "expected": "no",
-          "detected": true,
+          "detected": false,
           "uncertain": false,
-          "outcome": "fp"
+          "outcome": "tn"
         },
         {
           "id": "U7",
           "capability": "sends_external",
           "expected": "no",
-          "detected": true,
-          "uncertain": false,
-          "outcome": "fp"
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
         },
         {
           "id": "G1",
@@ -1757,9 +1757,9 @@
           "id": "M2",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "M2",
@@ -1829,9 +1829,9 @@
           "id": "S1",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "S1",
@@ -1853,9 +1853,9 @@
           "id": "S2",
           "capability": "ingests_untrusted",
           "expected": "yes",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "fn"
+          "outcome": "tp"
         },
         {
           "id": "S2",
@@ -2397,9 +2397,9 @@
           "id": "O-filesystem-edit_file",
           "capability": "reads_private",
           "expected": "ambiguous",
-          "detected": false,
+          "detected": true,
           "uncertain": false,
-          "outcome": "ambiguous-untagged"
+          "outcome": "ambiguous-asserted"
         },
         {
           "id": "O-filesystem-edit_file",
@@ -2734,7 +2734,7 @@
           "capability": "reads_private",
           "expected": "no",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "tn"
         },
         {
@@ -2758,7 +2758,7 @@
           "capability": "reads_private",
           "expected": "no",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "tn"
         },
         {
@@ -2782,7 +2782,7 @@
           "capability": "reads_private",
           "expected": "no",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "tn"
         },
         {
@@ -2854,7 +2854,7 @@
           "capability": "reads_private",
           "expected": "no",
           "detected": false,
-          "uncertain": false,
+          "uncertain": true,
           "outcome": "tn"
         },
         {
@@ -2989,7 +2989,7 @@
           "set": "news_chat",
           "expected": false,
           "status": "clear",
-          "reason": "missing: reads_private, ingests_untrusted",
+          "reason": "missing: reads_private",
           "outcome": "tn"
         },
         {

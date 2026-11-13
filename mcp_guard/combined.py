@@ -29,7 +29,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from .capabilities import CAPABILITIES, Capability, TaggedTool, tag_tool
+from .capabilities import CAPABILITIES, Capability, TaggedTool, tag_tool, with_server_context
 from .models import AuditEntry, Finding, Risk
 from .rules import RuleSet
 from .snapshot import MCPSnapshot, ToolSnapshot
@@ -54,6 +54,7 @@ class CombinedResult(BaseModel):
     unevaluated: tuple[str, ...] = ()  # active servers without a tool list
     malformed: int = 0  # tools that could not be parsed, so could not be tagged
     suppressed: tuple[TaggedTool, ...] = ()  # tools whose tags a --rules override removed
+    uncertain: tuple[TaggedTool, ...] = ()  # tools with low-confidence tags (not counted)
     cut_point: Capability | None = None
     entry: AuditEntry | None = None
     source: str = "config"  # the config's name, as on the entry
@@ -147,8 +148,9 @@ def _evaluate(snapshot: MCPSnapshot, entries: tuple[AuditEntry, ...],
         return CombinedResult(status="not-evaluated", unevaluated=tuple(unevaluated),
                               reason=_not_evaluated(snapshot, unevaluated, active))
     malformed = sum(t.parse_error is not None for t in tools)
-    tagged = [tag_tool(t, ruleset.capabilities, ruleset.exceptions)
-              for t in tools if t.parse_error is None]
+    parsed = [t for t in tools if t.parse_error is None]
+    tagged = with_server_context([tag_tool(t, ruleset.capabilities, ruleset.exceptions)
+                                  for t in parsed], parsed, ruleset.capabilities)
     surface = {c: tuple(t for t in tagged if c in t.capabilities) for c in CAPABILITIES}
     involved = [t for ts in surface.values() for t in ts]
     servers = tuple(sorted({t.server for t in involved if t.server is not None}))
@@ -157,7 +159,8 @@ def _evaluate(snapshot: MCPSnapshot, entries: tuple[AuditEntry, ...],
     common = CombinedResult(status="clear", surface=surface, servers=servers,
                             file_tools=file_tools, unevaluated=tuple(unevaluated),
                             malformed=malformed,
-                            suppressed=tuple(t for t in tagged if t.suppressed))
+                            suppressed=tuple(t for t in tagged if t.suppressed),
+                            uncertain=tuple(t for t in tagged if t.uncertain))
     missing = [c for c in CAPABILITIES if not surface[c]]
     if missing:
         return common.model_copy(update={

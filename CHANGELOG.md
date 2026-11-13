@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Capability tags (V2, Lot 1)
+- **The input schema counts.** A free path parameter (no `enum`, `const` or `pattern`) gives `reads_private` when the tool says it reads and returns something, and a low-confidence tag when it only checks the path or its role is unclear. A path to write to is not a read. A free URL parameter gives `sends_external` when the tool sends to it or fetches it (`ingests_untrusted` too), a low-confidence tag otherwise.
+- **Server context.** A tool that reads back stored items, articles, digests or messages gets `ingests_untrusted` when another tool of the same server brings third-party content in.
+- **Negation demotes, never removes.** "Makes no network request" lowers the negated words to low confidence. Any non-negated trigger, and the tool's name, keep the tag: a description cannot talk a tag away.
+- **`url` alone is no longer untrusted content or a request**: it needs a fetch or request verb. New paraphrases are covered ("Return the contents stored at a path on this machine", "Retrieve the page found at an address", "Deliver a message").
+- **Confidence on every tag** (`high` rules, `medium`, `low`). Low-confidence tags are reported apart and not counted by `--combined`. JSON output (additive): `confidence` on each surface entry, and an `uncertain` list in the combined details. The table shows them on an "Uncertain, not counted" line.
+- Some `--combined` verdicts change (the rule is experimental). On the benchmark's historical corpus, recall goes from 0.6 to 0.8 (`reads_private`), 0.43 to 1.0 (`ingests_untrusted`) and 0.6 to 1.0 (`sends_external`), with no precision loss. Held-out cases are reported apart in `tests/benchmark/`.
+
 ### Tests: detection benchmark
 - **`tests/benchmark/`**: a synthetic corpus with ground truth (tool poisoning, documentation vs. orders to the agent, the three capability tags, `--combined` sets, tool-result texts), run through the real audit pipeline. `pytest` fails when any case changes outcome against `baseline.json`; an intended improvement is recorded with `python tests/benchmark/bench.py --update-baseline`. No product code changed: this measures 0.13.1 before the detector work.
 
