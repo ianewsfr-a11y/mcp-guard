@@ -22,6 +22,7 @@ from mcp_guard.capabilities import CAPABILITIES
 HERE = Path(__file__).resolve().parent
 SERVER = HERE.parent / "fixtures" / "bench_server.py"
 FROZEN_SHA256 = "68df2840704bb1c5cc78c4a5042ab3e8788ebddef02d5abe613a0fddc1cb1cff"
+FROZEN_LOT2_SHA256 = "a5ae1958509bc77c2d84f9874467602d781cee81ed6bc38e27f291cad0c271ee"
 
 
 def _key(case: dict) -> str:
@@ -60,9 +61,10 @@ def test_outcomes_match_the_baseline(report):
 
 
 @pytest.mark.unit
-def test_the_lot0_reference_is_frozen():
+def test_the_lot0_and_lot2_references_are_frozen():
     digest = hashlib.sha256(bench.FROZEN_BASELINE.read_bytes()).hexdigest()
     assert digest == FROZEN_SHA256
+    assert hashlib.sha256(bench.FROZEN_LOT2.read_bytes()).hexdigest() == FROZEN_LOT2_SHA256
 
 
 @pytest.mark.unit
@@ -125,7 +127,8 @@ def test_summary_lists_every_measure(report):
     table = bench.summary(report)
     historical = 1 + len(CAPABILITIES) + 1 + 1  # poisoning, capabilities, combined, results
     holdout = len(CAPABILITIES) + 1
-    assert table.count("\n") == 1 + historical + holdout + 1  # + coverage scenarios
+    poisoning = 2  # one row per split of the Lot 3 poisoning corpus
+    assert table.count("\n") == 1 + historical + holdout + poisoning + 1  # + coverage
 
 
 def _live(set_name: str, tmp_path: Path) -> list:

@@ -42,16 +42,17 @@ from mcp_guard.rules import DEFAULT_RULESET, RulesFile
 HERE = Path(__file__).resolve().parent
 BASELINE = HERE / "baseline.json"
 FROZEN_BASELINE = HERE / "baseline-0.13.1.json"  # Lot 0 reference, never rewritten
+FROZEN_LOT2 = HERE / "baseline-lot2.json"  # end of Lot 2, never rewritten
 POISON_CATEGORIES = ("tool-poisoning",)
 CORPORA = ("historical", "holdout")
-REPORTS = (*CORPORA, "coverage")
+REPORTS = (*CORPORA, "poisoning", "coverage")
 
 
 def load(name: str) -> ModuleType:
     if str(HERE) not in sys.path:
         sys.path.insert(0, str(HERE))
     return __import__({"historical": "corpus", "holdout": "holdout",
-                       "coverage": "coverage_scenarios"}[name])
+                       "coverage": "coverage_scenarios", "poisoning": "poisoning_cases"}[name])
 
 
 def raw_tool(tool: dict[str, Any]) -> dict[str, Any]:
@@ -109,6 +110,7 @@ def poisoning_cases(tools: list[dict[str, Any]], runs: dict[str, AuditRun]) -> l
         found = sorted({f.category for f in entry.findings})
         detected = any(c in POISON_CATEGORIES for c in found)
         cases.append({"id": tool["id"], "technique": tool["technique"],
+                      "split": tool.get("split", "development"),
                       "expected": tool["poisoned"], "detected": detected,
                       "outcome": _outcome(tool["poisoned"], detected), "categories": found,
                       "risk": entry.risk.name})
@@ -222,6 +224,10 @@ def measure_corpus(name: str) -> dict[str, Any]:
     }
     if poisoning:
         metrics["poisoning"] = _tally(poisoning)
+        splits = sorted({c["split"] for c in poisoning})
+        if len(splits) > 1:
+            metrics["poisoning_by_split"] = {
+                s: _tally([c for c in poisoning if c["split"] == s]) for s in splits}
     if in_results:
         metrics["results_static_detector"] = _tally(in_results)
     return {"corpus": {"tools": len(tools), "sets": len(sets), "results": len(results)},
@@ -270,6 +276,7 @@ def measure_coverage() -> dict[str, Any]:
 
 def measure() -> dict[str, Any]:
     report = {name: measure_corpus(name) for name in CORPORA}
+    report["poisoning"] = measure_corpus("poisoning")
     report["coverage"] = measure_coverage()
     return report
 
@@ -312,6 +319,9 @@ def summary(report: dict[str, Any]) -> str:
             "|---|---|---|---|---|---|---|---|"]
     for name in CORPORA:
         rows += _rows(name, report[name])
+    for split, m in report["poisoning"]["metrics"]["poisoning_by_split"].items():
+        rows.append(f"| poisoning | tool poisoning, {split} | {m['tp']} | {m['fp']} | "
+                    f"{m['fn']} | {m['tn']} | {m['precision']} | {m['recall']} |")
     coverage = report["coverage"]["metrics"]
     rows.append(f"| coverage | scenarios right / wrong | {coverage['right']} | "
                 f"{coverage['wrong']} | | | | |")
