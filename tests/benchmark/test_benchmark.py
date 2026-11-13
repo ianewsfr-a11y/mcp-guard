@@ -27,12 +27,13 @@ FROZEN_SHA256 = "68df2840704bb1c5cc78c4a5042ab3e8788ebddef02d5abe613a0fddc1cb1cf
 def _key(case: dict) -> str:
     return json.dumps({k: v for k, v in case.items()
                        if k not in ("outcome", "detected", "uncertain", "risk", "categories",
-                                    "status", "reason", "signals")}, sort_keys=True)
+                                    "status", "reason", "signals", "partial",
+                                    "relevant")}, sort_keys=True)
 
 
 def _changes(baseline: dict, current: dict) -> list[str]:
     lines = []
-    for corpus_name in bench.CORPORA:
+    for corpus_name in bench.REPORTS:
         for group, cases in current[corpus_name]["cases"].items():
             before = {_key(c): c["outcome"] for c in baseline[corpus_name]["cases"][group]}
             for case in cases:
@@ -52,7 +53,7 @@ def report():
 def test_outcomes_match_the_baseline(report):
     baseline = json.loads(bench.BASELINE.read_text(encoding="utf-8"))
     changes = _changes(baseline, report)
-    same = all(report[n]["metrics"] == baseline[n]["metrics"] for n in bench.CORPORA)
+    same = all(report[n]["metrics"] == baseline[n]["metrics"] for n in bench.REPORTS)
     assert not changes and same, (
         "benchmark outcomes changed (update the baseline only for an intended improvement):\n"
         + "\n".join(changes or ["metrics differ"]))
@@ -124,7 +125,7 @@ def test_summary_lists_every_measure(report):
     table = bench.summary(report)
     historical = 1 + len(CAPABILITIES) + 1 + 1  # poisoning, capabilities, combined, results
     holdout = len(CAPABILITIES) + 1
-    assert table.count("\n") == 1 + historical + holdout
+    assert table.count("\n") == 1 + historical + holdout + 1  # + coverage scenarios
 
 
 def _live(set_name: str, tmp_path: Path) -> list:

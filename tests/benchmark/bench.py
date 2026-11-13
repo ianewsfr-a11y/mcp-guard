@@ -34,21 +34,24 @@ from types import ModuleType
 from typing import Any
 
 from mcp_guard.capabilities import CAPABILITIES
+from mcp_guard.live.protocol import LiveError
 from mcp_guard.pipeline import AuditRun, run_audit
 from mcp_guard.poisoning import signals
-from mcp_guard.rules import DEFAULT_RULESET
+from mcp_guard.rules import DEFAULT_RULESET, RulesFile
 
 HERE = Path(__file__).resolve().parent
 BASELINE = HERE / "baseline.json"
 FROZEN_BASELINE = HERE / "baseline-0.13.1.json"  # Lot 0 reference, never rewritten
 POISON_CATEGORIES = ("tool-poisoning",)
 CORPORA = ("historical", "holdout")
+REPORTS = (*CORPORA, "coverage")
 
 
 def load(name: str) -> ModuleType:
     if str(HERE) not in sys.path:
         sys.path.insert(0, str(HERE))
-    return __import__({"historical": "corpus", "holdout": "holdout"}[name])
+    return __import__({"historical": "corpus", "holdout": "holdout",
+                       "coverage": "coverage"}[name])
 
 
 def raw_tool(tool: dict[str, Any]) -> dict[str, Any]:
@@ -167,10 +170,10 @@ def combined_cases(sets: dict[str, dict[str, Any]],
             continue
         combined = runs[set_name].combined
         status = combined.status if combined else "missing"
-        alert = status in ("triggered", "partial")
         cases.append({"set": set_name, "expected": set_truth["expected_alert"],
                       "status": status, "reason": combined.reason if combined else "",
-                      "outcome": _outcome(set_truth["expected_alert"], alert)})
+                      "partial": status == "partial",
+                      "outcome": _outcome(set_truth["expected_alert"], status == "triggered")})
     return cases
 
 
@@ -210,6 +213,9 @@ def measure_corpus(name: str) -> dict[str, Any]:
     metrics: dict[str, Any] = {
         "capabilities": {c: _tally([x for x in capabilities if x["capability"] == c])
                          for c in CAPABILITIES},
+        "combined_partial": {
+            "on_expected_alert": sum(c["partial"] and c["expected"] for c in combined),
+            "on_expected_clear": sum(c["partial"] and not c["expected"] for c in combined)},
         "capabilities_ambiguous": _ambiguous(capabilities),
         "capabilities_uncertain_flags": sum(c["uncertain"] for c in capabilities),
         "combined": _tally(combined),
@@ -224,8 +230,48 @@ def measure_corpus(name: str) -> dict[str, Any]:
                       "combined": combined, "results": in_results}}
 
 
+def audit_scenario(scenario: dict[str, Any]) -> AuditRun:
+    """A coverage scenario: unreachable servers fail their live capture,
+    a tool without a name is malformed, `rules` is a rules-file body."""
+    live: dict[str, Any] = {name: (LiveError("unreachable") if tools == "unreachable" else tools)
+                            for name, tools in scenario["servers"].items()}
+    config = {"mcpServers": {name: {"command": "bench-server"} for name in live}}
+    ruleset = (RulesFile.model_validate(scenario["rules"]).to_ruleset()
+               if scenario.get("rules") else DEFAULT_RULESET)
+    return run_audit(config, f"bench:{scenario['id']}", ruleset, live=live, combined=True)
+
+
+def _relevant(run: AuditRun) -> list[str]:
+    coverage = getattr(run.combined, "coverage", None)
+    return sorted({link.capability for link in getattr(coverage, "relevant_uncertain", ())})
+
+
+def measure_coverage() -> dict[str, Any]:
+    """Status of each coverage scenario against the status written for it."""
+    cases = []
+    for scenario in load("coverage").SCENARIOS:
+        run = audit_scenario(scenario)
+        status = run.combined.status if run.combined else "missing"
+        relevant = _relevant(run)
+        expected_relevant = [scenario["relevant"]] if scenario["relevant"] else []
+        right = status == scenario["expected"] and relevant == expected_relevant
+        cases.append({"id": scenario["id"], "case": scenario["case"],
+                      "expected": scenario["expected"], "status": status,
+                      "expected_relevant": expected_relevant, "relevant": relevant,
+                      "outcome": "right" if right else "wrong"})
+    statuses = {s: sum(c["status"] == s for c in cases)
+                for s in ("triggered", "clear", "partial", "not-evaluated")}
+    return {"corpus": {"scenarios": len(cases)},
+            "metrics": {"right": sum(c["outcome"] == "right" for c in cases),
+                        "wrong": sum(c["outcome"] == "wrong" for c in cases),
+                        "statuses": statuses},
+            "cases": {"coverage": cases}}
+
+
 def measure() -> dict[str, Any]:
-    return {name: measure_corpus(name) for name in CORPORA}
+    report = {name: measure_corpus(name) for name in CORPORA}
+    report["coverage"] = measure_coverage()
+    return report
 
 
 def timings(repeat: int) -> dict[str, Any]:
@@ -266,6 +312,9 @@ def summary(report: dict[str, Any]) -> str:
             "|---|---|---|---|---|---|---|---|"]
     for name in CORPORA:
         rows += _rows(name, report[name])
+    coverage = report["coverage"]["metrics"]
+    rows.append(f"| coverage | scenarios right / wrong | {coverage['right']} | "
+                f"{coverage['wrong']} | | | | |")
     return "\n".join(rows)
 
 
@@ -284,7 +333,7 @@ def main() -> None:
     elif args.summary:
         print(summary(report))
     else:
-        print(json.dumps({n: report[n]["metrics"] for n in CORPORA}, indent=2))
+        print(json.dumps({n: report[n]["metrics"] for n in REPORTS}, indent=2))
 
 
 if __name__ == "__main__":

@@ -32,6 +32,10 @@
           "recall": 1.0
         }
       },
+      "combined_partial": {
+        "on_expected_alert": 0,
+        "on_expected_clear": 0
+      },
       "capabilities_ambiguous": {
         "asserted": 0,
         "uncertain": 0,
@@ -1145,6 +1149,7 @@
           "expected": true,
           "status": "clear",
           "reason": "missing: reads_private",
+          "partial": false,
           "outcome": "fn"
         },
         {
@@ -1152,6 +1157,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -1159,6 +1165,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -1166,6 +1173,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: ingests_untrusted",
+          "partial": false,
           "outcome": "tn"
         },
         {
@@ -1173,6 +1181,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: reads_private, ingests_untrusted, sends_external",
+          "partial": false,
           "outcome": "tn"
         },
         {
@@ -1180,6 +1189,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -1187,6 +1197,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: ingests_untrusted, sends_external",
+          "partial": false,
           "outcome": "tn"
         }
       ],
@@ -1294,6 +1305,10 @@
           "precision": 0.9,
           "recall": 0.9
         }
+      },
+      "combined_partial": {
+        "on_expected_alert": 0,
+        "on_expected_clear": 0
       },
       "capabilities_ambiguous": {
         "asserted": 2,
@@ -2976,6 +2991,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -2983,6 +2999,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -2990,6 +3007,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: reads_private",
+          "partial": false,
           "outcome": "tn"
         },
         {
@@ -2997,6 +3015,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: reads_private, ingests_untrusted, sends_external",
+          "partial": false,
           "outcome": "tn"
         },
         {
@@ -3004,6 +3023,7 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: reads_private, ingests_untrusted",
+          "partial": false,
           "outcome": "tn"
         },
         {
@@ -3011,6 +3031,7 @@
           "expected": true,
           "status": "triggered",
           "reason": "",
+          "partial": false,
           "outcome": "tp"
         },
         {
@@ -3018,10 +3039,216 @@
           "expected": false,
           "status": "clear",
           "reason": "missing: ingests_untrusted, sends_external",
+          "partial": false,
           "outcome": "tn"
         }
       ],
       "results": []
+    }
+  },
+  "coverage": {
+    "corpus": {
+      "scenarios": 20
+    },
+    "metrics": {
+      "right": 17,
+      "wrong": 3,
+      "statuses": {
+        "triggered": 7,
+        "clear": 10,
+        "partial": 2,
+        "not-evaluated": 1
+      }
+    },
+    "cases": {
+      "coverage": [
+        {
+          "id": "CV01",
+          "case": "A",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV02",
+          "case": "B",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV03",
+          "case": "B",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV04",
+          "case": "C",
+          "expected": "partial",
+          "status": "clear",
+          "expected_relevant": [
+            "reads_private"
+          ],
+          "relevant": [],
+          "outcome": "wrong"
+        },
+        {
+          "id": "CV05",
+          "case": "C",
+          "expected": "partial",
+          "status": "clear",
+          "expected_relevant": [
+            "sends_external"
+          ],
+          "relevant": [],
+          "outcome": "wrong"
+        },
+        {
+          "id": "CV06",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV07",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV08",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV09",
+          "case": "E",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV10",
+          "case": "E",
+          "expected": "not-evaluated",
+          "status": "not-evaluated",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV11",
+          "case": "E",
+          "expected": "partial",
+          "status": "partial",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV12",
+          "case": "F",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV13",
+          "case": "F",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV14",
+          "case": "L2",
+          "expected": "partial",
+          "status": "triggered",
+          "expected_relevant": [
+            "reads_private"
+          ],
+          "relevant": [],
+          "outcome": "wrong"
+        },
+        {
+          "id": "CV15",
+          "case": "L2",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV16",
+          "case": "rules",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV17",
+          "case": "rules",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV18",
+          "case": "rules",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV19",
+          "case": "D",
+          "expected": "clear",
+          "status": "clear",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        },
+        {
+          "id": "CV20",
+          "case": "A",
+          "expected": "triggered",
+          "status": "triggered",
+          "expected_relevant": [],
+          "relevant": [],
+          "outcome": "right"
+        }
+      ]
     }
   }
 }
