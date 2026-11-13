@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Tests: detection benchmark
+- **`tests/benchmark/`**: a synthetic corpus with ground truth (tool poisoning, documentation vs. orders to the agent, the three capability tags, `--combined` sets, tool-result texts), run through the real audit pipeline. `pytest` fails when any case changes outcome against `baseline.json`; an intended improvement is recorded with `python tests/benchmark/bench.py --update-baseline`. No product code changed: this measures 0.13.1 before the detector work.
+
 ## v0.13.1 (2026-10-25)
 
 ### Approval log: refusals that say why
