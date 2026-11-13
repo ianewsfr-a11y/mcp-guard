@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Combined rule: coverage (V2, Lot 2)
+- **`partial` now also means "one link rests only on low-confidence evidence".** When two capabilities are confirmed and the third could only come from a low-confidence tag (a free `config_path` with no sign its content is returned, a sender that says it makes no request), the verdict is `partial` and names those tools, instead of `clear`. Low-confidence evidence is never counted as confirmed and never raises a finding. With two capabilities missing, doubts are reported but the verdict stays `clear`.
+- **Every verdict explains itself.** A `coverage` block (JSON `combined.coverage`, SARIF notification `properties.coverage`, both additive) lists the confirmed and missing capabilities, the uncertain tools that would complete the chain, the other doubts, the servers not evaluated, the malformed tools, the reasons and the limits. The table names the uncertain link and states that no status certifies a config as safe.
+- **Bounded paths (decision L2).** A schema `pattern` bounds a path only if it rejects path escapes (`.*` or `[a-z]+` bound nothing; invalid or very long patterns count as unbounded). A bounded path turns a "reads private data" keyword that rests only on file words ("Load a profile") into a low-confidence doubt; independent evidence (an inbox, a database, a shell, a free path) keeps the read.
+- Statuses keep their names (`triggered`, `clear`, `partial`, `not-evaluated`, `disabled`). Exit codes are unchanged: only `triggered` is a finding.
+
 ### Capability tags (V2, Lot 1)
 - **The input schema counts.** A free path parameter (no `enum`, `const` or `pattern`) gives `reads_private` when the tool says it reads and returns something, and a low-confidence tag when it only checks the path or its role is unclear. A path to write to is not a read. A free URL parameter gives `sends_external` when the tool sends to it or fetches it (`ingests_untrusted` too), a low-confidence tag otherwise.
 - **Server context.** A tool that reads back stored items, articles, digests or messages gets `ingests_untrusted` when another tool of the same server brings third-party content in.

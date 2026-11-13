@@ -33,7 +33,7 @@
         }
       },
       "combined_partial": {
-        "on_expected_alert": 0,
+        "on_expected_alert": 1,
         "on_expected_clear": 0
       },
       "capabilities_ambiguous": {
@@ -1147,9 +1147,9 @@
         {
           "set": "aggregator",
           "expected": true,
-          "status": "clear",
-          "reason": "missing: reads_private",
-          "partial": false,
+          "status": "partial",
+          "reason": "missing: reads_private; uncertain: feedhub > feedhub_validate_config could provide reads_private (low confidence, not counted)",
+          "partial": true,
           "outcome": "fn"
         },
         {
@@ -1283,10 +1283,10 @@
       "capabilities": {
         "reads_private": {
           "tp": 22,
-          "fp": 6,
+          "fp": 5,
           "fn": 3,
-          "tn": 35,
-          "precision": 0.786,
+          "tn": 36,
+          "precision": 0.815,
           "recall": 0.88
         },
         "ingests_untrusted": {
@@ -1315,7 +1315,7 @@
         "uncertain": 2,
         "untagged": 6
       },
-      "capabilities_uncertain_flags": 9,
+      "capabilities_uncertain_flags": 10,
       "combined": {
         "tp": 3,
         "fp": 0,
@@ -1356,9 +1356,9 @@
           "id": "L2",
           "capability": "reads_private",
           "expected": "no",
-          "detected": true,
-          "uncertain": false,
-          "outcome": "fp"
+          "detected": false,
+          "uncertain": true,
+          "outcome": "tn"
         },
         {
           "id": "L2",
@@ -3051,12 +3051,12 @@
       "scenarios": 20
     },
     "metrics": {
-      "right": 17,
-      "wrong": 3,
+      "right": 20,
+      "wrong": 0,
       "statuses": {
-        "triggered": 7,
-        "clear": 10,
-        "partial": 2,
+        "triggered": 6,
+        "clear": 8,
+        "partial": 5,
         "not-evaluated": 1
       }
     },
@@ -3093,23 +3093,27 @@
           "id": "CV04",
           "case": "C",
           "expected": "partial",
-          "status": "clear",
+          "status": "partial",
           "expected_relevant": [
             "reads_private"
           ],
-          "relevant": [],
-          "outcome": "wrong"
+          "relevant": [
+            "reads_private"
+          ],
+          "outcome": "right"
         },
         {
           "id": "CV05",
           "case": "C",
           "expected": "partial",
-          "status": "clear",
+          "status": "partial",
           "expected_relevant": [
             "sends_external"
           ],
-          "relevant": [],
-          "outcome": "wrong"
+          "relevant": [
+            "sends_external"
+          ],
+          "outcome": "right"
         },
         {
           "id": "CV06",
@@ -3187,12 +3191,14 @@
           "id": "CV14",
           "case": "L2",
           "expected": "partial",
-          "status": "triggered",
+          "status": "partial",
           "expected_relevant": [
             "reads_private"
           ],
-          "relevant": [],
-          "outcome": "wrong"
+          "relevant": [
+            "reads_private"
+          ],
+          "outcome": "right"
         },
         {
           "id": "CV15",

@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .capability_schema import schema_tags
+from .capability_schema import path_bounds, schema_tags
 from .capability_words import FETCH_VERBS, READ_VERBS, SEND_VERBS
 from .context import asserted_tokens, effective_tokens
 
@@ -264,11 +264,38 @@ def tag_tool(tool: ToolSnapshot, overrides: tuple[CapabilityOverride, ...] = (),
     from_schema = [CapabilityTag(capability=c, source="schema", trigger=t, confidence=k)
                    for c, t, k in schema_tags(tool)]
     found = [*_keyword_tags(tool, exceptions or {}), *_annotation_tags(tool), *from_schema]
+    found = _bounded_reads_demoted(tool, found, exceptions or {})
     for override in (o for o in overrides if o.matches(tool)):
         found += [CapabilityTag(capability=c, source="rule", confidence="high",
                                 trigger=f"rules: add on {override.target}")
                   for c in CAPABILITIES if c in override.add]
     return _split(tool, found, removed_by_rules(tool, overrides))
+
+
+_FILE_WORDS = frozenset({"file", "directory", "folder", "document", "profile"})
+
+
+def _bounded_reads_demoted(tool: ToolSnapshot, found: list[CapabilityTag],
+                           exceptions: dict[str, frozenset[str]]) -> list[CapabilityTag]:
+    """A "reads private data" keyword that only rests on file words ("Load a
+    profile") is contradicted by a path parameter the schema bounds: the read
+    is not asserted, the doubt is shown (low confidence). Independent
+    evidence (an inbox, a database, a shell, a free path) keeps it."""
+    free, bounded = path_bounds(tool)
+    if free or not bounded:
+        return found
+    properties = tool.input_schema.get("properties")
+    texts = (tool.description, *(properties if isinstance(properties, dict) else ()))
+    words = asserted_tokens(texts, exceptions, VOCABULARY, tool.name)
+    if words & ((_PRIVATE_DATA - _FILE_WORDS) | _SHELL):
+        return found
+    return [t.model_copy(update={
+                "confidence": "low",
+                "trigger": t.trigger + " (contradicted: the path parameter is bounded by the "
+                                       "schema)"})
+            if t.capability == "reads_private" and t.source == "keyword"
+            and t.confidence == "medium" else t
+            for t in found]
 
 
 # --- server context -------------------------------------------------------------

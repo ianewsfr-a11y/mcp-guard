@@ -13,6 +13,7 @@ from rich.table import Table
 from .capabilities import CAPABILITIES, Capability, TaggedTool
 from .combined import MAX_LISTED, CombinedResult
 from .combined import RULE as COMBINED_RULE
+from .combined_coverage import LIMITS, coverage_dict
 from .diff import CombinedDiff, FieldChange, ItemDiff, SnapshotDiff
 from .injection import ScenarioResult
 from .markup import escape
@@ -101,6 +102,7 @@ def combined_details(result: CombinedResult) -> dict[str, Any]:
                                  "capabilities": list(t.suppressed)}
                                 for t in result.suppressed],
         "uncertain": _uncertain(result),  # low confidence: reported, not counted
+        "coverage": coverage_details(result),
     }
 
 
@@ -148,14 +150,36 @@ def _uncertain_line(result: CombinedResult) -> str:
             + (f" and {more} more tool(s)" if more > 0 else ""))
 
 
+def coverage_details(result: CombinedResult) -> dict[str, Any] | None:
+    """What the rule confirmed, missed, doubted and could not read (v0.14)."""
+    return coverage_dict(result.coverage) if result.coverage is not None else None
+
+
+def _relevant_line(result: CombinedResult) -> str | None:
+    cov = result.coverage
+    if cov is None or not cov.relevant_uncertain:
+        return None
+    links = ", ".join(f"{escape(printable(link.label, 80))} "
+                      f"({escape(printable(link.trigger, 80))})"
+                      for link in cov.relevant_uncertain[:MAX_LISTED])
+    return (f"[yellow]Only low-confidence evidence could supply {cov.missing[0]}: {links}. "
+            f"Confirm or rule it out with a `capabilities` rule.[/]")
+
+
 def render_combined(result: CombinedResult) -> None:
     title = f"{COMBINED_RULE} (experimental)"
     if result.status != "triggered":
         label, style = _STATUS_LABELS[result.status]
         console.print(f"\n[{style}]{title}: {label}[/] "
                       f"[dim]({escape(printable(result.reason, 300))})[/]")
-        if result.uncertain:
+        relevant = _relevant_line(result)
+        if relevant:
+            console.print(relevant)
+        others = result.coverage.other_uncertain if result.coverage else len(result.uncertain)
+        if result.uncertain and others:  # the relevant links are already named above
             console.print(f"[dim]{_uncertain_line(result)}[/]")
+        if result.status in ("clear", "partial"):
+            console.print(f"[dim]Verdict {escape(LIMITS)}.[/]")
         return
     lines = []
     for capability in CAPABILITIES:

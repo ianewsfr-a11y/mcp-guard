@@ -318,7 +318,20 @@ When the active servers cover all three, it reports **one** finding for the whol
 - **Risk:** MEDIUM, or HIGH when a server that reads private data also has `broad-filesystem-scope`. Never CRITICAL.
 - **Content:** the tools behind each capability, and the **cut point**, the least populated capability. Removing those tools, or requiring approval for each call, breaks the chain.
 - **Stable id:** the id depends on the rule and the servers involved, so adding a tool to one of them does not create a new alert.
-- **Not evaluated:** without `--live` (or a tools list) the rule cannot see the tools, and says "not evaluated" rather than "no finding". When some servers could not be reached, or some tools could not be parsed, a missing capability gives "partial" rather than "no finding". In SARIF, both statuses appear as notifications. Neither changes the exit code, so a green CI run with `--combined` does not prove the servers were all evaluated.
+- **Not evaluated:** without `--live` (or a tools list) the rule cannot see the tools, and says "not evaluated" rather than "no finding". In SARIF, "not evaluated" and "partial" appear as notifications. Neither changes the exit code, so a green CI run with `--combined` does not prove the servers were all evaluated.
+
+**Statuses.** The rule only concludes from what it could see:
+
+| Status | When | Finding |
+|---|---|---|
+| `triggered` | the three capabilities are confirmed (medium or high confidence) | yes |
+| `partial` | a capability is missing, and either only low-confidence evidence could supply it (one missing link at most), or some servers could not be reached, or some tools could not be parsed | no |
+| `clear` | a capability is missing, everything was read, and no low-confidence evidence could complete the chain | no |
+| `not-evaluated` | no tool list at all | no |
+
+Low-confidence evidence is never counted as confirmed. When two capabilities are missing, low-confidence evidence for them is reported but does not make the verdict `partial`: a chain resting on two speculative links is too weak to flag. The JSON output (`combined.coverage`) and the SARIF notification (`properties.coverage`) list the confirmed and missing capabilities, the uncertain tools that would complete the chain, the other doubts, the servers not evaluated, the malformed tools and the reasons, in order. The table names the uncertain link and suggests confirming or ruling it out with a `capabilities` rule.
+
+**No status certifies a config as safe.** Every verdict is drawn from what the servers declare: names, descriptions, schemas and annotations. A server can misdescribe its tools. A tool named `send_report` that says "Does not send anything" still counts as a sender. A schema `pattern` bounds a path only if it rejects path escapes (`../../etc/passwd`, `/etc/passwd`, `C:\Windows\...`): `.*` or `[a-z]+` bound nothing, since JSON Schema patterns are unanchored. A path bounded by the schema turns a "reads private data" keyword that rests only on file words ("Load a profile") into a doubt. Independent evidence, such as an inbox, a database, a shell or a free path, keeps the read.
 
 On the official servers, `memory` + `fetch` is enough to trigger it. `fetch` is the cut point: it is both the untrusted input (it declares `openWorldHint`) and the outbound channel (it requests any URL).
 

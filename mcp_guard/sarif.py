@@ -9,6 +9,7 @@ from typing import Any
 from . import __version__
 from .combined import RULE as COMBINED_RULE
 from .combined import CombinedResult
+from .combined_coverage import coverage_dict
 from .models import AuditEntry, Finding, Risk
 from .rules import BUILTIN_CHECKS, RuleSet
 
@@ -135,8 +136,12 @@ def _config_result(entry: AuditEntry, finding: Finding, uri: str, text: str,
 def _notifications(combined: CombinedResult | None) -> list[dict[str, Any]]:
     if combined is None or combined.status not in ("not-evaluated", "partial"):
         return []
-    return [{"level": "note",
-             "message": {"text": f"{COMBINED_RULE} {combined.status}: {combined.reason}"}}]
+    note: dict[str, Any] = {"level": "note",
+                            "message": {"text": f"{COMBINED_RULE} {combined.status}: "
+                                                f"{combined.reason}"}}
+    if combined.coverage is not None:  # additive (v0.14): confirmed, missing, uncertain
+        note["properties"] = {"coverage": coverage_dict(combined.coverage)}
+    return [note]
 
 
 def to_sarif(entries: tuple[AuditEntry, ...], ruleset: RuleSet, uri: str,

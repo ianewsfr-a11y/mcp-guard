@@ -7,6 +7,7 @@ A synthetic corpus with ground truth, run through the real audit pipeline. It me
 | `corpus.py` | Historical corpus: tools, sets and tool results, with their ground truth. Everything is made up. Attacker hosts are under `.invalid`. Detectors are tuned against it |
 | `holdout.py` | Held-out corpus, written before the capability rules of v0.14 and never tuned for: synthetic cases (paths, URLs, negations, a mailbox, a news reader, private stores) and the 38 official reference tools of `tests/fixtures/official_tools.json`, annotated by what they do. Capability truth is `yes`, `no` or `ambiguous`; ambiguous cases are reported apart |
 | `bench.py` | Runs the corpus through `pipeline.run_audit` with live captures injected (the `inspect --live --combined` path, without the transport) and computes TP, FP, FN, TN, precision and recall |
+| `coverage_scenarios.py` | Twenty coverage scenarios for the combined rule (confirmed chains, relevant and irrelevant doubts, unreachable servers, malformed tools, misleading declarations, bounded paths, rules), with statuses written from the decision rules before the coverage model was implemented |
 | `baseline.json` | The outcomes and metrics of the current code, case by case, for both corpora |
 | `baseline-0.13.1.json` | The Lot 0 reference (v0.13.1, historical corpus only). Never rewritten; `test_benchmark.py` pins its SHA-256 |
 | `test_benchmark.py` | Fails when any outcome differs from the baseline. It also checks that the corpus is well formed and synthetic only, and that the in-process audit agrees with a real `inspect --live` on two sets (`tests/fixtures/bench_server.py`) |
@@ -33,6 +34,10 @@ python tests/benchmark/bench.py --update-baseline  # record an intended change
 ## Detected, uncertain, ambiguous
 
 A capability counts as detected when the combined rule's surface carries it, that is a tag of medium or high confidence. A low-confidence tag is "uncertain": it is recorded with the case and counted apart (`capabilities_uncertain_flags`), never as a detection. For an `ambiguous` truth, the outcome is `ambiguous-asserted` (tagged anyway: an over-classification to watch), `ambiguous-uncertain` (the doubt is shown) or `ambiguous-untagged`.
+
+## Combined verdicts
+
+A combined case counts as an alert only when the status is `triggered`. A `partial` verdict is reported apart (`combined_partial`: on sets where an alert is justified, and on sets where it is not), since it raises no finding. The coverage scenarios are judged on their exact status and on the uncertain capability they name.
 
 ## Known limits
 

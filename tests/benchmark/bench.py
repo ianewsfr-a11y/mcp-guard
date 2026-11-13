@@ -51,7 +51,7 @@ def load(name: str) -> ModuleType:
     if str(HERE) not in sys.path:
         sys.path.insert(0, str(HERE))
     return __import__({"historical": "corpus", "holdout": "holdout",
-                       "coverage": "coverage"}[name])
+                       "coverage": "coverage_scenarios"}[name])
 
 
 def raw_tool(tool: dict[str, Any]) -> dict[str, Any]:

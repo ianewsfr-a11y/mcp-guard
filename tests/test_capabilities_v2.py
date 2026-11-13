@@ -208,8 +208,11 @@ def _audit(servers):
 def test_combined_lists_uncertain_tools_without_counting_them(capsys):
     run = _audit({"cfg": [("apply_settings", "Apply settings.", {"config_path": {}})],
                   "web": [("fetch_url", "Fetch a web page from a URL.")]})
-    assert run.combined.status == "clear"
+    # v0.14: the low-confidence read is the only missing link, so the verdict is
+    # partial (no finding), not clear; it is never counted as confirmed
+    assert run.combined.status == "partial" and run.combined.entry is None
     assert "reads_private" in run.combined.reason
+    assert "reads_private" not in run.combined.coverage.confirmed
     details = json.loads(entries_to_json(run.entries, run.combined))[-1]["combined"]
     assert details["uncertain"] == [{
         "server": "cfg", "tool": "apply_settings", "capability": "reads_private",
@@ -217,7 +220,10 @@ def test_combined_lists_uncertain_tools_without_counting_them(capsys):
         "trigger": "schema: free path parameter `config_path`; no evidence its content is "
                    "returned"}]
     render_combined(run.combined)
-    assert "Uncertain, not counted" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    # v0.14: the doubt is named once, as the link that would complete the chain
+    assert "Only low-confidence evidence could supply reads_private" in out
+    assert "Uncertain, not counted" not in out
 
 
 @pytest.mark.unit

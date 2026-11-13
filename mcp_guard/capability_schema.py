@@ -4,8 +4,10 @@ A parameter is evidence, never proof. A `config_path` the model can set to
 any file is how an agent gets a file read, but only if the tool returns what
 it reads. So:
 
-- a parameter constrained by the schema (`enum`, `const`, `pattern`) is
-  bounded and suggests nothing: the server says which values it accepts;
+- a parameter constrained by the schema (`enum`, `const`, or a `pattern`
+  that rejects path escapes such as "../../etc/passwd") is bounded and
+  suggests nothing. A pattern that lets any path through (".*", "[a-z]+",
+  JSON Schema patterns being unanchored) bounds nothing;
 - a free path parameter on a tool whose description says it returns
   something it reads ("Read the file at path and return its contents") gives
   `reads_private` with medium confidence;
@@ -27,6 +29,7 @@ caller turns them into tags.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
 from .capability_words import FETCH_VERBS, SEND_VERBS
@@ -54,7 +57,6 @@ _READ_NEGATED = frozenset({"read", "load", "open", "access", "accessed", "opened
 _CHECK_VERBS = frozenset({"check", "validate", "verify", "test", "exist", "exists"})
 _CONTENT_WORDS = frozenset({"content", "contents", "text", "data", "lines", "body"})
 _IDENTIFIER_WORDS = frozenset({"logical", "identifier", "alias"})
-_BOUNDING_KEYS = ("enum", "const", "pattern")
 
 
 def _properties(tool: ToolSnapshot) -> dict[str, dict[str, Any]]:
@@ -64,10 +66,36 @@ def _properties(tool: ToolSnapshot) -> dict[str, dict[str, Any]]:
     return {str(k): v for k, v in properties.items() if isinstance(v, dict)}
 
 
+# a `pattern` bounds a path only if it rejects these (JSON Schema patterns are
+# unanchored searches: "[a-z]+" accepts "../../etc/passwd")
+_ESCAPES = ("../../etc/passwd", "/etc/passwd", r"C:\Windows\win.ini", "~/.ssh/id_rsa",
+            r"..\..\secrets.json")
+MAX_PATTERN = 256
+
+
+def permissive_pattern(pattern: object) -> bool:
+    """True when the declared pattern lets an arbitrary path through, or
+    cannot be judged (not a string, too long, not a valid regex)."""
+    if not isinstance(pattern, str) or len(pattern) > MAX_PATTERN:
+        return True
+    try:
+        compiled = re.compile(pattern)
+    except (re.error, RecursionError, OverflowError):
+        return True
+    return any(compiled.search(sample) for sample in _ESCAPES)
+
+
+def _bounded(spec: dict[str, Any]) -> bool:
+    """`enum` or `const` (a fixed list), or a pattern that rejects escapes."""
+    if "enum" in spec or "const" in spec:
+        return True
+    return "pattern" in spec and not permissive_pattern(spec["pattern"])
+
+
 def _free_string(spec: dict[str, Any]) -> bool:
     kind = spec.get("type")
     stringy = kind in (None, "string") or (isinstance(kind, list) and "string" in kind)
-    return stringy and not any(key in spec for key in _BOUNDING_KEYS)
+    return stringy and not _bounded(spec)
 
 
 def _description(spec: dict[str, Any]) -> str:
@@ -111,6 +139,18 @@ def _url_tags(name: str, verbs: frozenset[str]) -> list[SchemaTag]:
         return [("ingests_untrusted", trigger, "medium"), ("sends_external", trigger, "medium")]
     return [("sends_external", f"schema: free URL parameter `{shown}`; no evidence of a request",
              "low")]
+
+
+def path_bounds(tool: ToolSnapshot) -> tuple[bool, bool]:
+    """(has a free path parameter, has a path parameter bounded by the schema)."""
+    free = bounded = False
+    for name, spec in _properties(tool).items():
+        if _is_path(name, spec) and not _is_url(name, spec):
+            if _free_string(spec):
+                free = True
+            elif _bounded(spec):
+                bounded = True
+    return free, bounded
 
 
 def schema_tags(tool: ToolSnapshot) -> list[SchemaTag]:
