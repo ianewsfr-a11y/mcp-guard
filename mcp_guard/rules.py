@@ -129,6 +129,11 @@ BUILTIN_CHECKS: dict[str, str] = {
                        "process lists, and the lock's salted HMAC of the arguments can be "
                        "brute-forced by anyone who reads the lock: use an env variable."),
     "broad-filesystem-scope": "The server is given access to a root or home directory.",
+    "read-only-undermined-by-access": ("Tools on this server declare readOnlyHint: true, but "
+                                       "the server process is granted broad or privileged "
+                                       "access, so the read-only claim a client may "
+                                       "auto-approve on is only as strong as the process "
+                                       "behind it."),
     "insecure-transport": "A remote server is reached over plain HTTP.",
     "malformed-entry": "The entry could not be parsed and must be audited manually.",
     "live-discovery-failed": "Live discovery of the server's tools failed.",

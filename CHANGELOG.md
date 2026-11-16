@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **New finding `read-only-undermined-by-access` (MEDIUM).** In `--live` mode, a server whose tools declare `readOnlyHint: true` while its launch grants `broad-filesystem-scope` or `privileged-access` is flagged: a read-only tool list a client may auto-approve on is only as strong as the process behind it. The evidence names the read-only tools and the grant. Suppress it with `disable: [read-only-undermined-by-access]`. Static audits (no live annotations) are unaffected. (#25)
+
 ## v0.14.0 (2026-11-13)
 
 Detection quality release: capability tags weigh schemas, server context and negation with a confidence level; the combined rule says what it confirmed, suspects and could not read; tool-poisoning orders are judged in context. CLI commands, exit codes, lock and snapshot formats and the proxy are unchanged. JSON and SARIF changes are additive.
