@@ -23,6 +23,8 @@ from .text import printable
 LIVE_FAILED = "live-discovery-failed"
 RESOURCE, PROMPT, INSTRUCTIONS = ("resource-poisoning", "prompt-poisoning",
                                   "server-instruction-poisoning")
+READ_ONLY_SCOPE = "read-only-undermined-by-access"
+_BROAD_GRANTS = frozenset({"broad-filesystem-scope", "privileged-access"})
 
 
 _NOT_EXFILTRATION = frozenset({"uri", "mimeType"})  # URLs or types by nature
@@ -66,6 +68,29 @@ def surface_findings(server: ServerSnapshot, known: frozenset[str] = frozenset()
     return tuple(found)
 
 
+def _read_only_tools(server: ServerSnapshot) -> list[str]:
+    return sorted(t.name for t in server.tools
+                  if isinstance(t.annotations, dict)
+                  and t.annotations.get("readOnlyHint") is True)
+
+
+def read_only_scope_finding(server: ServerSnapshot,
+                            findings: tuple[Finding, ...]) -> Finding | None:
+    """Read-only tools on a server granted broad or privileged access (issue
+    #25). A `readOnlyHint: true` tool list is a claim a client may auto-approve
+    on; the real boundary is the access of the process behind it."""
+    grants = [f for f in findings if f.category in _BROAD_GRANTS]
+    names = _read_only_tools(server)
+    if not grants or not names:
+        return None
+    grant = max(grants, key=lambda f: f.risk)
+    return Finding(
+        category=READ_ONLY_SCOPE, risk=Risk.MEDIUM, field=grant.field,
+        evidence=f"{', '.join(names)} declare readOnlyHint: true, but the process is "
+                 f"given {grant.evidence} ({grant.category}): the read-only claim is "
+                 f"only as strong as the process behind it")
+
+
 def server_entry(server: ServerSnapshot, ruleset: RuleSet = DEFAULT_RULESET,
                  known: frozenset[str] = frozenset()) -> AuditEntry:
     if server.spec is None:
@@ -76,6 +101,9 @@ def server_entry(server: ServerSnapshot, ruleset: RuleSet = DEFAULT_RULESET,
         extra += (Finding(category=LIVE_FAILED, risk=Risk.MEDIUM, evidence=server.live_error,
                           field="live"),)
     extra += surface_findings(server, known)
+    scope = read_only_scope_finding(server, entry.findings)
+    if scope is not None:
+        extra += (scope,)
     if not extra:
         return entry
     return AuditEntry(kind="server", name=server.name,
